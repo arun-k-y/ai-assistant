@@ -5,29 +5,73 @@ body {
 }
 
 /* Custom styles for markdown */
+.prose {
+  @apply text-slate-200;
+}
+
+.prose strong {
+  @apply text-slate-100 font-semibold;
+}
+
 .prose pre {
-  @apply bg-slate-800 text-white p-4 rounded-lg overflow-x-auto;
+  @apply bg-slate-900/60 text-white p-4 rounded-lg overflow-x-auto max-w-full border border-slate-700/50;
 }
 
 .prose code:not(pre code) {
-  @apply bg-slate-100 text-slate-800 px-1 py-0.5 rounded font-mono text-sm;
+  @apply bg-slate-800/80 text-purple-300 px-1.5 py-0.5 rounded font-mono text-sm border border-purple-500/20;
+}
+
+/* Ensure code blocks don't overflow */
+.prose pre code {
+  @apply block text-slate-100;
+  max-width: 100%;
+  word-break: break-word;
+  white-space: pre;
+}
+
+/* SyntaxHighlighter wrapper */
+.prose > div {
+  @apply max-w-full overflow-x-auto;
+}
+
+/* Improve list styling */
+.prose ul, .prose ol {
+  @apply my-3;
+}
+
+.prose li {
+  @apply my-1;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-100;
+  @apply bg-slate-800/50 rounded;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full;
+  @apply bg-slate-600 rounded;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400;
+  @apply bg-slate-500;
+}
+
+/* Horizontal scrollbar for code blocks */
+.prose pre::-webkit-scrollbar {
+  height: 6px;
+}
+
+.prose pre::-webkit-scrollbar-track {
+  @apply bg-slate-900/50;
+}
+
+.prose pre::-webkit-scrollbar-thumb {
+  @apply bg-slate-600 rounded;
 }
 
 @keyframes slideLeft {

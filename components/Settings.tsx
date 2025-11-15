@@ -184,12 +184,32 @@ export default function Settings() {
   }, [isOpen, organizeModels, getFallbackModelGroups]);
 
   /* --------------------------
-      Save settings
+      Save settings handler
+  --------------------------- */
+  const handleSaveSettings = () => {
+    try {
+      localStorage.setItem("chatSettings", JSON.stringify(settings));
+      window.dispatchEvent(new CustomEvent("settingsUpdated"));
+      setIsOpen(false);
+    } catch {
+      // ignore save errors
+    }
+  };
+
+  /* --------------------------
+      Reload settings when opening panel
   --------------------------- */
   useEffect(() => {
-    localStorage.setItem("chatSettings", JSON.stringify(settings));
-    window.dispatchEvent(new CustomEvent("settingsUpdated"));
-  }, [settings]);
+    if (isOpen) {
+      // Reload saved settings from localStorage when opening
+      try {
+        const saved = localStorage.getItem("chatSettings");
+        if (saved) setSettings(JSON.parse(saved));
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, [isOpen]);
 
   /* --------------------------
       Close on outside click
@@ -318,14 +338,23 @@ export default function Settings() {
             />
           </div>
 
-          <button
-            onClick={() => setIsOpen(false)}
-            className="w-full mt-4 py-2 text-center rounded-lg text-white font-semibold 
-                       bg-gradient-to-br from-[#7c3aed] via-[#d946ef] to-[#fb7185] 
-                       hover:scale-[1.02] transition shadow-lg"
-          >
-            Save Settings
-          </button>
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={() => setIsOpen(false)}
+              className="flex-1 py-2 text-center rounded-lg text-slate-300 font-medium
+                         bg-white/5 border border-white/10 hover:bg-white/10 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveSettings}
+              className="flex-1 py-2 text-center rounded-lg text-white font-semibold 
+                         bg-gradient-to-br from-[#7c3aed] via-[#d946ef] to-[#fb7185] 
+                         hover:scale-[1.02] transition shadow-lg"
+            >
+              Save Settings
+            </button>
+          </div>
         </div>
       </div>
     </div>
