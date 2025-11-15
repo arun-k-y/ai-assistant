@@ -1,10 +1,14 @@
-// components/PromptLibrary.tsx
+
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Lightbulb, X, Search } from "lucide-react";
 
+/* --------------------------
+    Default Prompts
+--------------------------- */
 interface Prompt {
   id: string;
   title: string;
@@ -45,182 +49,196 @@ const defaultPrompts: Prompt[] = [
     id: "5",
     title: "Brainstorm Ideas",
     content:
-      "Help me brainstorm creative ideas for [project/problem]. Think outside the box and provide at least 10 unique suggestions.",
+      "Help me brainstorm creative ideas for [project/problem]. Provide at least 10 unique suggestions.",
     category: "Creative",
   },
   {
     id: "6",
     title: "Summarize Article",
     content:
-      "Please summarize this article in 3-5 bullet points, highlighting the key takeaways:\n\n[Paste article text]",
+      "Please summarize this article in 3-5 bullet points:\n\n[Paste article text]",
     category: "Productivity",
   },
   {
     id: "7",
     title: "Learning Path",
     content:
-      "Create a comprehensive learning path for [skill/topic]. Include resources, estimated time, and milestones.",
+      "Create a complete learning path for [skill/topic], including milestones and resources.",
     category: "Learning",
   },
   {
     id: "8",
     title: "SQL Query Writer",
     content:
-      "Write a SQL query to [describe what you need]. The database has these tables: [describe schema].",
+      "Write a SQL query to [describe what you need]. The database tables are: [describe schema].",
     category: "Development",
   },
   {
     id: "9",
     title: "Business Plan Helper",
     content:
-      "Help me create a business plan for [business idea]. Include market analysis, revenue model, and key metrics.",
+      "Help me create a business plan for [business idea], including revenue model and market analysis.",
     category: "Business",
   },
   {
     id: "10",
     title: "Interview Preparation",
     content:
-      "Generate interview questions and answers for a [position] role, focusing on [specific skills/topics].",
+      "Generate interview questions and answers for a [position] role, focusing on [skills/topics].",
     category: "Career",
   },
 ];
 
+/* ---------------------------------
+    COMPONENT
+---------------------------------- */
 interface PromptLibraryProps {
   onSelectPrompt: (content: string) => void;
 }
 
 export default function PromptLibrary({ onSelectPrompt }: PromptLibraryProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [mounted, setMounted] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setMounted(true), []);
 
   const categories = [
     "All",
     ...Array.from(new Set(defaultPrompts.map((p) => p.category))),
   ];
 
-  const filteredPrompts = defaultPrompts.filter((prompt) => {
+  const filtered = defaultPrompts.filter((p) => {
     const matchesSearch =
-      prompt.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prompt.content.toLowerCase().includes(searchQuery.toLowerCase());
+      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.content.toLowerCase().includes(searchQuery.toLowerCase());
+
     const matchesCategory =
-      selectedCategory === "All" || prompt.category === selectedCategory;
+      selectedCategory === "All" || p.category === selectedCategory;
+
     return matchesSearch && matchesCategory;
   });
 
+  /* Close on outside click */
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        modalRef.current &&
-        !modalRef.current.contains(event.target as Node)
-      ) {
+    if (!isOpen) return;
+
+    function handle(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     }
 
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      // Prevent body scroll when modal is open
-      document.body.style.overflow = "hidden";
-    }
+    document.addEventListener("mousedown", handle);
+    document.body.style.overflow = "hidden";
+
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("mousedown", handle);
       document.body.style.overflow = "unset";
     };
   }, [isOpen]);
 
-  const handleSelectPrompt = (content: string) => {
+  /* Handle prompt selection */
+  const selectPrompt = (content: string) => {
     onSelectPrompt(content);
     setIsOpen(false);
   };
 
-  const modalContent =
+  /* ------------------------------
+      Right Slide Panel
+  ------------------------------ */
+  const panel =
     isOpen && mounted ? (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+      <div className="fixed inset-0 z-[9999] flex justify-end bg-black/40 backdrop-blur-sm">
+        {/* PANEL */}
         <div
-          ref={modalRef}
-          className="w-full max-w-4xl my-8 rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh] relative z-[10000]"
+          ref={panelRef}
+          className="w-full sm:w-[550px] h-full bg-[#060a18]/95 border-l border-white/10 shadow-2xl backdrop-blur-xl 
+                   animate-slideLeft flex flex-col"
         >
-          <div className="flex items-center justify-between p-6 border-b border-slate-200 flex-shrink-0">
+          {/* HEADER */}
+          <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
             <div>
-              <h3 className="text-2xl font-semibold text-slate-900">
+              <h3 className="text-xl font-semibold text-slate-100">
                 Prompt Library
               </h3>
-              <p className="text-sm text-slate-500 mt-1">
-                Select a template to get started
-              </p>
+              <p className="text-sm text-slate-400 mt-0.5">Select a template</p>
             </div>
+
             <button
               onClick={() => setIsOpen(false)}
-              className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-500 transition-colors"
+              className="rounded p-2 hover:bg-white/10 transition"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5 text-slate-300" />
             </button>
           </div>
 
-          <div className="p-6 border-b border-slate-200 flex-shrink-0">
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+          {/* SEARCH */}
+          <div className="p-6 border-b border-white/10">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+
               <input
                 type="text"
                 placeholder="Search prompts..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onKeyDown={(e) => e.stopPropagation()}
+                className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#0b1020]/70 border border-white/10 
+                         text-slate-200 placeholder:text-slate-500 focus:ring-2 focus:ring-[#7c3aed]/40"
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
+            {/* Categories */}
+            <div className="flex flex-wrap gap-2 mt-4">
+              {categories.map((cat) => (
                 <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
-                    selectedCategory === category
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                    selectedCategory === cat
+                      ? "bg-gradient-to-r from-[#7c3aed] to-[#d946ef] text-white shadow"
+                      : "bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10"
                   }`}
                 >
-                  {category}
+                  {cat}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 min-h-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredPrompts.map((prompt) => (
-                <button
-                  key={prompt.id}
-                  onClick={() => handleSelectPrompt(prompt.content)}
-                  className="text-left p-4 border border-slate-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all w-full h-full flex flex-col"
-                >
-                  <div className="flex items-start justify-between mb-2 gap-2">
-                    <h4 className="font-semibold text-slate-900 flex-1">
-                      {prompt.title}
-                    </h4>
-                    <span className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-full whitespace-nowrap flex-shrink-0">
-                      {prompt.category}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-600 line-clamp-3 break-words">
-                    {prompt.content}
-                  </p>
-                </button>
-              ))}
-            </div>
+          {/* PROMPTS LIST */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-3">
+            {filtered.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => selectPrompt(p.content)}
+                className="w-full text-left p-4 rounded-lg bg-[#0b1020]/50 border border-white/5 
+                         hover:bg-white/5 hover:border-white/10 transition shadow-sm"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="text-slate-100 font-semibold text-base">
+                    {p.title}
+                  </h4>
 
-            {filteredPrompts.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-slate-500">
-                  No prompts found matching your search.
+                  <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-slate-300 border border-white/10">
+                    {p.category}
+                  </span>
+                </div>
+
+                <p className="text-sm text-slate-400 line-clamp-3">
+                  {p.content}
                 </p>
+              </button>
+            ))}
+
+            {filtered.length === 0 && (
+              <div className="text-center py-10 text-slate-500">
+                No prompts match your search.
               </div>
             )}
           </div>
@@ -232,13 +250,24 @@ export default function PromptLibrary({ onSelectPrompt }: PromptLibraryProps) {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 transition-colors"
+        className="rounded-lg p-2 text-slate-300 hover:bg-white/5 transition"
         title="Prompt Library"
       >
         <Lightbulb className="h-5 w-5" />
       </button>
 
-      {mounted && createPortal(modalContent, document.body)}
+      {mounted && typeof document !== 'undefined' && createPortal(panel, document.body)}
     </>
   );
 }
+
+/* ----------------------------
+⚠️ Add to globals.css:
+
+@keyframes slideLeft {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slideLeft { animation: slideLeft 0.25s ease-out; }
+
+----------------------------- */

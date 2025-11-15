@@ -23,7 +23,7 @@ interface ModelGroup {
 }
 
 /* ----------------------------
-    Custom Model Dropdown
+    Custom Model Dropdown (NEON)
 ----------------------------- */
 function ModelDropdown({
   value,
@@ -45,26 +45,27 @@ function ModelDropdown({
   return (
     <div className="relative">
       <button
-        className="w-full flex items-center justify-between border px-3 py-2 rounded bg-white shadow-sm hover:bg-gray-50"
+        className="w-full flex items-center justify-between px-4 py-2 rounded-lg bg-[#0b1020]/80 border border-white/10 text-slate-200 hover:bg-white/5 transition"
         onClick={() => setOpen((o) => !o)}
         disabled={loading}
       >
-        <span className="truncate">{selectedLabel}</span>
-        <ChevronDown className="w-4 h-4 opacity-60" />
+        <span className="truncate text-sm">{selectedLabel}</span>
+        <ChevronDown className="w-4 h-4 text-slate-300" />
       </button>
 
       {open && (
-        <div className="absolute z-50 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto p-1">
+        <div className="absolute z-50 w-full mt-2 bg-[#060a18]/95 border border-white/10 rounded-lg shadow-xl backdrop-blur-md max-h-64 overflow-y-auto animate-slideUp p-1">
           {groups.map((group) => (
-            <div key={group.label} className="mb-2">
-              <div className="text-xs font-semibold text-gray-500 px-2 py-1">
+            <div key={group.label} className="mb-3">
+              <div className="text-xs font-semibold text-slate-400 px-2 py-1">
                 {group.label}
               </div>
+
               {group.models.map((m) => (
                 <div
                   key={m.name}
-                  className={`px-3 py-2 rounded cursor-pointer hover:bg-gray-100 ${
-                    value === m.name ? "bg-blue-100" : ""
+                  className={`px-3 py-2 rounded text-sm text-slate-200 cursor-pointer hover:bg-white/5 transition ${
+                    value === m.name ? "bg-white/10" : ""
                   }`}
                   onClick={() => {
                     onChange(m.name);
@@ -83,17 +84,15 @@ function ModelDropdown({
 }
 
 /* ----------------------------
-    Main Component
+    MAIN SETTINGS COMPONENT
 ----------------------------- */
 export default function Settings() {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelGroups, setModelGroups] = useState<ModelGroup[]>([]);
-  const modalRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  /* --------------------------
-      Settings State
-  --------------------------- */
   const [settings, setSettings] = useState({
     temperature: 0.7,
     maxTokens: 2000,
@@ -102,43 +101,21 @@ export default function Settings() {
   });
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  /* Load saved settings */
+  useEffect(() => {
     try {
       const saved = localStorage.getItem("chatSettings");
       if (saved) setSettings(JSON.parse(saved));
-    } catch (err) {
-      console.error("Error parsing saved settings", err);
-    }
+    } catch {}
   }, []);
 
   /* --------------------------
       Model Groups
   --------------------------- */
-  const getOpenAIModelGroups = useCallback(
-    (): ModelGroup[] => [
-      // {
-      //   label: "OpenAI GPT-4o",
-      //   models: [
-      //     { name: "gpt-4o", displayName: "GPT-4o (Most Capable)" },
-      //     {
-      //       name: "gpt-4o-mini",
-      //       displayName: "GPT-4o Mini (Fast & Affordable)",
-      //     },
-      //   ],
-      // },
-      // {
-      //   label: "OpenAI GPT-4",
-      //   models: [
-      //     { name: "gpt-4-turbo", displayName: "GPT-4 Turbo" },
-      //     { name: "gpt-4", displayName: "GPT-4" },
-      //   ],
-      // },
-      // {
-      //   label: "OpenAI GPT-3.5",
-      //   models: [{ name: "gpt-3.5-turbo", displayName: "GPT-3.5 Turbo" }],
-      // },
-    ],
-    []
-  );
+  const getOpenAIModelGroups = useCallback((): ModelGroup[] => [], []);
 
   const getFallbackModelGroups = useCallback(
     (): ModelGroup[] => [
@@ -181,7 +158,7 @@ export default function Settings() {
   );
 
   /* --------------------------
-      Fetch Models on Open
+      Fetch models when panel opens
   --------------------------- */
   useEffect(() => {
     if (!isOpen) return;
@@ -191,16 +168,12 @@ export default function Settings() {
       try {
         const res = await fetch("/api/models");
         if (!res.ok) {
-          console.warn("Failed to fetch models, using fallback");
           setModelGroups(getFallbackModelGroups());
           return;
         }
-
         const data = await res.json();
-        const rawModels = data.models || [];
-        setModelGroups(organizeModels(rawModels));
-      } catch (error) {
-        console.error("Error fetching models:", error);
+        setModelGroups(organizeModels(data.models || []));
+      } catch {
         setModelGroups(getFallbackModelGroups());
       } finally {
         setIsLoadingModels(false);
@@ -211,7 +184,7 @@ export default function Settings() {
   }, [isOpen, organizeModels, getFallbackModelGroups]);
 
   /* --------------------------
-      Save to Local Storage
+      Save settings
   --------------------------- */
   useEffect(() => {
     localStorage.setItem("chatSettings", JSON.stringify(settings));
@@ -224,119 +197,132 @@ export default function Settings() {
   useEffect(() => {
     if (!isOpen) return;
 
-    const handler = (e: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+    function handle(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
-    };
+    }
 
-    document.addEventListener("mousedown", handler);
+    document.addEventListener("mousedown", handle);
     document.body.style.overflow = "hidden";
 
     return () => {
-      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("mousedown", handle);
       document.body.style.overflow = "unset";
     };
   }, [isOpen]);
 
   /* --------------------------
-      Modal UI
+      The right-side sliding panel
   --------------------------- */
-  const modal = isOpen ? (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+  const panel = isOpen ? (
+    <div className="fixed inset-0 z-[9999] flex justify-end bg-black/50 backdrop-blur-sm">
+      {/* SLIDING GLASS PANEL */}
       <div
-        ref={modalRef}
-        className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl border"
+        ref={panelRef}
+        className="w-full sm:w-[420px] h-full bg-[#060a18]/95 border-l border-white/10 shadow-2xl backdrop-blur-xl
+                   animate-slideLeft flex flex-col"
       >
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Settings</h3>
-          <button onClick={() => setIsOpen(false)}>
-            <X className="h-5 w-5" />
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <h3 className="text-lg font-semibold text-slate-100">Settings</h3>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="rounded p-2 hover:bg-white/10 transition"
+          >
+            <X className="h-5 w-5 text-slate-300" />
           </button>
         </div>
 
-        <div className="mt-6 space-y-6">
-          {/* Model Selector */}
+        {/* Panel content */}
+        <div className="p-6 space-y-6 overflow-auto">
+          {/* MODEL */}
           <div>
-            <div className="flex justify-between items-center">
-              <label className="text-sm font-medium">Model</label>
-              {isLoadingModels && <Loader2 className="h-4 w-4 animate-spin" />}
+            <div className="flex justify-between mb-1">
+              <label className="text-sm font-medium text-slate-300">
+                Model
+              </label>
+
+              {isLoadingModels && (
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              )}
             </div>
 
-            <div className="mt-1">
-              <ModelDropdown
-                value={settings.modelName}
-                loading={isLoadingModels}
-                groups={modelGroups}
-                onChange={(name) =>
-                  setSettings((prev) => ({ ...prev, modelName: name }))
-                }
-              />
-            </div>
+            <ModelDropdown
+              value={settings.modelName}
+              loading={isLoadingModels}
+              groups={modelGroups}
+              onChange={(name) =>
+                setSettings((prev) => ({ ...prev, modelName: name }))
+              }
+            />
           </div>
 
-          {/* Temperature */}
+          {/* TEMPERATURE */}
           <div>
-            <label className="text-sm font-medium">
+            <label className="text-sm font-medium text-slate-300">
               Temperature: {settings.temperature}
             </label>
+
             <input
               type="range"
-              name="temperature"
               min="0"
               max="1"
               step="0.1"
               value={settings.temperature}
               onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
+                setSettings((p) => ({
+                  ...p,
                   temperature: Number(e.target.value),
                 }))
               }
-              className="w-full"
+              className="w-full accent-[#7c3aed]"
             />
           </div>
 
-          {/* Max Tokens */}
+          {/* MAX TOKENS */}
           <div>
-            <label className="text-sm font-medium">
+            <label className="text-sm font-medium text-slate-300">
               Max Tokens: {settings.maxTokens}
             </label>
+
             <input
               type="range"
-              name="maxTokens"
               min="500"
               max="8000"
               step="100"
               value={settings.maxTokens}
               onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
+                setSettings((p) => ({
+                  ...p,
                   maxTokens: Number(e.target.value),
                 }))
               }
-              className="w-full"
+              className="w-full accent-[#7c3aed]"
             />
           </div>
 
-          {/* Stream Toggle */}
-          <div className="flex justify-between">
-            <label className="text-sm font-medium">Stream Responses</label>
+          {/* STREAM */}
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-medium text-slate-300">
+              Stream Responses
+            </label>
+
             <input
               type="checkbox"
               checked={settings.stream}
               onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  stream: e.target.checked,
-                }))
+                setSettings((p) => ({ ...p, stream: e.target.checked }))
               }
+              className="h-5 w-5 accent-[#7c3aed]"
             />
           </div>
 
           <button
             onClick={() => setIsOpen(false)}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+            className="w-full mt-4 py-2 text-center rounded-lg text-white font-semibold 
+                       bg-gradient-to-br from-[#7c3aed] via-[#d946ef] to-[#fb7185] 
+                       hover:scale-[1.02] transition shadow-lg"
           >
             Save Settings
           </button>
@@ -350,11 +336,49 @@ export default function Settings() {
   --------------------------- */
   return (
     <>
-      <button className="p-2" onClick={() => setIsOpen(true)}>
+      <button
+        className="p-2 text-slate-300 hover:bg-white/5 rounded transition"
+        onClick={() => setIsOpen(true)}
+      >
         <SettingsIcon className="h-5 w-5" />
       </button>
 
-      {createPortal(modal, document.body)}
+      {mounted && createPortal(panel, document.body)}
     </>
   );
 }
+
+/* ----------------------------
+    Animation classes
+----------------------------- */
+/*
+Add this to globals.css:
+
+@keyframes slideLeft {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slideLeft {
+  animation: slideLeft 0.25s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.2s ease-out;
+}
+*/

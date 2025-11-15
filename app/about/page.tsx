@@ -1,59 +1,93 @@
-// app/about/page.jsx
-import Link from 'next/link';
-import { Bot, ArrowLeft } from 'lucide-react';
+
+import Link from "next/link";
+import { Bot, ArrowLeft } from "lucide-react";
 
 export default function AboutPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <header className="border-b border-slate-200 bg-white py-4 px-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <Link href="/" className="mr-4 rounded-full p-2 hover:bg-slate-100">
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
-            </Link>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600">
-              <Bot className="h-4 w-4 text-white" />
-            </div>
-            <h1 className="ml-2 text-xl font-semibold text-slate-800">About</h1>
+    <div
+      className="min-h-screen flex flex-col text-slate-200"
+      style={{
+        background:
+          "radial-gradient(600px 300px at 10% 10%, rgba(46, 48, 72, 0.55), transparent), " +
+          "radial-gradient(500px 220px at 90% 85%, rgba(124,58,237,0.18), transparent), " +
+          "linear-gradient(180deg, #060617 0%, #071029 45%, #0b1220 100%)",
+      }}
+    >
+      {/* Header */}
+      <header className="border-b border-white/10 backdrop-blur-md bg-black/20 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="rounded-lg p-2 hover:bg-white/10 transition"
+          >
+            <ArrowLeft className="h-5 w-5 text-slate-300" />
+          </Link>
+
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#06b6d4] shadow">
+            <Bot className="h-4 w-4 text-white" />
           </div>
+
+          <h1 className="text-xl font-semibold text-slate-100">About</h1>
         </div>
       </header>
 
-      <main className="flex-1 px-6 py-8">
-        <div className="mx-auto max-w-3xl">
-          <h1 className="text-3xl font-bold text-slate-900">About AI Chatbot</h1>
-          
-          <div className="mt-6 space-y-6 text-slate-700">
+      {/* Main Content */}
+      <main className="flex-1 px-6 py-10">
+        <div className="mx-auto max-w-3xl bg-[#060a18]/50 border border-white/10 rounded-2xl p-8 shadow-xl backdrop-blur-xl">
+          <h1 className="text-3xl font-bold text-slate-100 bg-clip-text text-transparent bg-gradient-to-r from-[#A78BFA] to-[#60A5FA]">
+            About AI Assistant
+          </h1>
+
+          <div className="mt-6 space-y-8 text-slate-300 text-[15px] leading-relaxed">
             <p>
-              This AI Chatbot is built using Next.js and integrates with OpenAI&apos;s powerful language models
-              to provide an intelligent conversational experience.
+              This AI Assistant is powered by modern Next.js architecture and
+              the latest OpenAI + Gemini models to deliver a beautifully
+              designed, fast, and intelligent conversational experience.
             </p>
-            
-            <h2 className="text-2xl font-semibold text-slate-900">Features</h2>
-            <ul className="list-disc pl-5 space-y-2">
-              <li>Natural language conversations with AI</li>
-              <li>Markdown support for formatted responses</li>
-              <li>Message history saved in your browser</li>
-              <li>Clean, modern UI with smooth animations</li>
-              <li>Fast and responsive design</li>
-            </ul>
-            
-            <h2 className="text-2xl font-semibold text-slate-900">Technology</h2>
-            <p>
-              Built with modern web technologies including:
-            </p>
-            <ul className="list-disc pl-5 space-y-2">
-              <li>Next.js for the framework</li>
-              <li>React for the UI components</li>
-              <li>Tailwind CSS for styling</li>
-              <li>OpenAI API for AI capabilities</li>
-              <li>Framer Motion for animations</li>
-            </ul>
-            
-            <div className="mt-8 flex justify-center">
-              <Link 
+
+            {/* Features Section */}
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-100 mb-3">
+                Features
+              </h2>
+
+              <ul className="list-disc pl-6 space-y-2 text-slate-400">
+                <li>Advanced AI conversation with real-time streaming</li>
+                <li>Ultra-dark neon UI inspired by Linear & Vercel</li>
+                <li>Markdown & syntax-highlighted code responses</li>
+                <li>Persistent chat history stored locally</li>
+                <li>Rich settings, prompt library & customization</li>
+                <li>Fully responsive & mobile-friendly UI</li>
+              </ul>
+            </div>
+
+            {/* Tech Section */}
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-100 mb-3">
+                Technology Stack
+              </h2>
+
+              <p className="text-slate-300 mb-3">
+                Built with production-grade modern web technologies:
+              </p>
+
+              <ul className="list-disc pl-6 space-y-2 text-slate-400">
+                <li>Next.js 14 with App Router</li>
+                <li>React 18 with server actions & streaming</li>
+                <li>Tailwind CSS for utility-first styling</li>
+                <li>OpenAI + Gemini APIs for intelligence</li>
+                <li>Framer Motion for smooth micro-animations</li>
+                <li>LocalStorage for offline chat persistence</li>
+              </ul>
+            </div>
+
+            {/* CTA */}
+            <div className="pt-4 flex justify-center">
+              <Link
                 href="/chat"
-                className="rounded-full bg-blue-600 px-6 py-3 text-white transition-colors hover:bg-blue-700 shadow-lg hover:shadow-xl hover:scale-105"
+                className="rounded-full bg-gradient-to-br from-[#7c3aed] via-[#d946ef] to-[#fb7185] 
+                           px-8 py-3 text-white shadow-lg hover:scale-[1.03] hover:shadow-2xl 
+                           transition-all font-medium"
               >
                 Start Chatting
               </Link>
@@ -61,10 +95,12 @@ export default function AboutPage() {
           </div>
         </div>
       </main>
-      
-      <footer className="border-t border-slate-200 bg-white py-6 px-6">
-        <div className="mx-auto max-w-3xl text-center text-sm text-slate-500">
-          &copy; {new Date().getFullYear()} AI Chatbot. All rights reserved.
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 bg-black/20 backdrop-blur-md py-6">
+        <div className="mx-auto max-w-3xl text-center text-sm text-slate-400">
+          © {new Date().getFullYear()} AI Assistant · Built with Next.js · All
+          rights reserved.
         </div>
       </footer>
     </div>

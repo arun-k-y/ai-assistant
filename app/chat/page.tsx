@@ -1,9 +1,9 @@
-// app/chat/page.tsx
+
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
 import {
-  ArrowLeft,
   Send,
   Trash2,
   User,
@@ -57,43 +57,61 @@ export default function ChatPage() {
     stream: true,
   });
 
+  // Background preset B: deep navy neon (used across UI classes)
   useEffect(() => {
     const savedMessages = localStorage.getItem("chatMessages");
     if (savedMessages) {
-      setMessages(JSON.parse(savedMessages));
+      try {
+        setMessages(JSON.parse(savedMessages));
+      } catch {
+        // ignore parse error
+      }
     }
 
     const savedSettings = localStorage.getItem("chatSettings");
     if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
+      try {
+        setSettings(JSON.parse(savedSettings));
+      } catch {
+        // ignore parse error
+      }
     }
 
     if (inputRef?.current) {
-      inputRef?.current?.focus();
+      inputRef.current.focus();
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("chatMessages", JSON.stringify(messages));
+    try {
+      localStorage.setItem("chatMessages", JSON.stringify(messages));
+    } catch {
+      // ignore
+    }
     scrollToBottom();
   }, [messages]);
 
   useEffect(() => {
-    // Listen for settings changes from Settings component
     const handleSettingsChange = () => {
       const savedSettings = localStorage.getItem("chatSettings");
       if (savedSettings) {
-        setSettings(JSON.parse(savedSettings));
+        try {
+          setSettings(JSON.parse(savedSettings));
+        } catch {
+          // ignore
+        }
       }
     };
 
-    // Listen for custom event (same tab)
     window.addEventListener("settingsUpdated", handleSettingsChange);
-    
-    // Listen for storage event (other tabs)
+
     window.addEventListener("storage", (e) => {
       if (e.key === "chatSettings" && e.newValue) {
-        setSettings(JSON.parse(e.newValue));
+        try {
+          setSettings(JSON.parse(e.newValue));
+        } catch {
+          // ignore
+        }
       }
     });
 
@@ -103,18 +121,31 @@ export default function ChatPage() {
   }, []);
 
   const scrollToBottom = () => {
-    endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+    try {
+      endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+    } catch {
+      // ignore
+    }
   };
 
   useEffect(() => {
-    const handleKeyDown = () => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't focus if user is already typing in another input/textarea
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
       if (inputRef?.current) {
-        inputRef?.current?.focus();
+        inputRef.current.focus();
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
-
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
@@ -129,6 +160,8 @@ export default function ChatPage() {
       content: input,
       timestamp: Date.now(),
     };
+
+    // Add user message immediately
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
@@ -150,20 +183,21 @@ export default function ChatPage() {
 
       if (!response.ok) {
         // Try to parse error response
-        let errorData;
+        let errorData: { message?: string; error?: string; details?: string } | null = null;
         let errorMessage = "Failed to get response from the server";
-        
+
         try {
           errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || "Failed to get response";
+          errorMessage = errorData?.message || errorData?.error || errorMessage;
         } catch {
-          console.error("Failed to parse error response");
+          console.error("Failed to parse server error response");
         }
-        
-        // Create a detailed error message
-        const errorDetails = errorData?.details ? `\n\n**Details:** ${errorData.details}` : "";
+
+        const errorDetails = errorData?.details
+          ? `\n\n**Details:** ${errorData.details}`
+          : "";
         const formattedError = `## ⚠️ Error\n\n${errorMessage}${errorDetails}\n\n---\n\n*If this issue persists, please check your API keys in Settings or try a different model.*`;
-        
+
         setMessages((prev) => [
           ...prev,
           {
@@ -178,29 +212,25 @@ export default function ChatPage() {
       }
 
       if (settings.stream) {
-        // Handle streaming response
+        // Streaming response handling
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let accumulatedContent = "";
 
         if (reader) {
           setIsTyping(false);
-          // Add empty assistant message that we'll update
+          // Add an empty assistant message to update progressively
           const assistantMessageIndex = messages.length + 1;
           setMessages((prev) => [
             ...prev,
-            {
-              role: "assistant",
-              content: "",
-              timestamp: Date.now(),
-            },
+            { role: "assistant", content: "", timestamp: Date.now() },
           ]);
 
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value);
+            const chunk = decoder.decode(value, { stream: true });
             const lines = chunk.split("\n");
 
             for (const line of lines) {
@@ -211,13 +241,15 @@ export default function ChatPage() {
                 }
                 try {
                   const parsed = JSON.parse(data);
-                  
-                  // Check for streaming errors
+
                   if (parsed.error) {
-                    const errorMessage = parsed.message || "An error occurred during streaming";
-                    const errorDetails = parsed.details ? `\n\n**Details:** ${parsed.details}` : "";
+                    const errorMessage =
+                      parsed.message || "An error occurred during streaming";
+                    const errorDetails = parsed.details
+                      ? `\n\n**Details:** ${parsed.details}`
+                      : "";
                     const formattedError = `## ⚠️ Error\n\n${errorMessage}${errorDetails}\n\n---\n\n*If this issue persists, please check your API keys in Settings or try a different model.*`;
-                    
+
                     setMessages((prev) => {
                       const newMessages = [...prev];
                       newMessages[assistantMessageIndex] = {
@@ -231,7 +263,7 @@ export default function ChatPage() {
                     setIsLoading(false);
                     return;
                   }
-                  
+
                   if (parsed.content) {
                     accumulatedContent += parsed.content;
                     setMessages((prev) => {
@@ -245,7 +277,7 @@ export default function ChatPage() {
                     });
                   }
                 } catch (err) {
-                  // Silently ignore JSON parse errors for streaming chunks
+                  // Non-blocking parse errors for streaming chunks
                   console.debug("Streaming parse error (non-critical):", err);
                 }
               }
@@ -253,34 +285,25 @@ export default function ChatPage() {
           }
         }
       } else {
-        // Handle non-streaming response
+        // Non-streaming response
         const data = await response.json();
         setIsTyping(false);
         setMessages((prev) => [
           ...prev,
-          {
-            role: "assistant",
-            content: data.message,
-            timestamp: Date.now(),
-          },
+          { role: "assistant", content: data.message, timestamp: Date.now() },
         ]);
       }
 
       setIsLoading(false);
     } catch (error) {
-      console.error("Error:", error);
-      
-      // Format error message with icon and details
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+      console.error("Chat request error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "An unexpected error occurred";
       const formattedError = `## ⚠️ Error\n\n${errorMessage}\n\n---\n\n*If this issue persists, please check your API keys in Settings or try a different model.*`;
-      
+
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: formattedError,
-          timestamp: Date.now(),
-        },
+        { role: "assistant", content: formattedError, timestamp: Date.now() },
       ]);
       setIsTyping(false);
       setIsLoading(false);
@@ -298,36 +321,41 @@ export default function ChatPage() {
   };
 
   const copyToClipboard = (text: string, index: number) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+    try {
+      navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch {
+      // ignore
+    }
   };
 
   const exportChat = () => {
-    const chatContent = messages
-      .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-      .join("\n\n");
-    const blob = new Blob([chatContent], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `chat-${new Date().toISOString()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const chatContent = messages
+        .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+        .join("\n\n");
+      const blob = new Blob([chatContent], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `chat-${new Date().toISOString()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
   };
 
   const regenerateResponse = async () => {
     if (messages.length < 2) return;
 
-    // Remove last assistant message
     const newMessages = messages.slice(0, -1);
     setMessages(newMessages);
 
-    // Get the last user message
     const lastUserMessage = newMessages[newMessages.length - 1];
-    if (lastUserMessage.role === "user") {
+    if (lastUserMessage?.role === "user") {
       setInput(lastUserMessage.content);
-      // Trigger form submit
       setTimeout(() => {
         const form = document.querySelector("form");
         form?.requestSubmit();
@@ -336,221 +364,285 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-gradient-to-br from-slate-50 to-slate-100">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur-md py-4 px-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
+    <div
+      className="flex h-screen flex-col antialiased"
+      style={{
+        // Deep Navy Neon background (preset B)
+        background:
+          "radial-gradient(600px 300px at 10% 10%, rgba(46, 48, 72, 0.55), transparent), " +
+          "radial-gradient(500px 220px at 90% 85%, rgba(124, 58, 237, 0.18), transparent), " +
+          "linear-gradient(180deg, #060617 0%, #071029 45%, #0b1220 100%)",
+        color: "var(--tw-prose-body, #e6eef8)",
+      }}
+    >
+      {/* Top header - glossy neon bar */}
+      <header className="border-b border-white/6 backdrop-blur-md bg-black/20">
+        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="mr-4 rounded-full p-2 hover:bg-slate-100 transition-colors"
+              className="flex items-center gap-3 rounded-full p-1 hover:bg-white/3 transition"
             >
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#06b6d4] shadow-md">
+                <Bot className="h-5 w-5 text-white" />
+              </div>
+              <div className="hidden sm:block">
+                <div className="text-sm font-semibold bg-clip-text text-transparent bg-gradient-to-r from-[#A78BFA] to-[#60A5FA]">
+                  NeonAI
+                </div>
+                <div className="text-xs text-slate-300">
+                  {settings.modelName}
+                </div>
+              </div>
             </Link>
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
-              <Bot className="h-5 w-5 text-white" />
-            </div>
-            <div className="ml-3">
-              <h1 className="text-xl font-semibold text-slate-800">
-                AI Assistant
-              </h1>
-              <p className="text-xs text-slate-500">{settings.modelName}</p>
-            </div>
           </div>
 
           <div className="flex items-center gap-2">
             <PromptLibrary onSelectPrompt={(content) => setInput(content)} />
             <button
               onClick={exportChat}
-              className="flex items-center rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
               title="Export chat"
+              className="rounded-md px-2 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/4 transition"
             >
               <Download className="h-4 w-4" />
             </button>
-           <Settings />
+
+            <Settings />
+
             <button
               onClick={clearChat}
-              className="flex items-center rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors"
+              className="rounded-md px-3 py-2 text-sm font-medium bg-white/3 text-slate-200 hover:bg-white/6 transition"
             >
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="inline-block h-4 w-4 mr-2" />
               Clear
             </button>
           </div>
         </div>
       </header>
 
+      {/* Chat area */}
       <main className="flex-1 overflow-hidden">
-        <div className="flex h-full flex-col overflow-y-auto px-4 py-6">
-          <div className="flex-1 space-y-6 max-w-4xl mx-auto w-full">
-            <AnimatePresence>
-              {messages.map((message, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className={`flex ${
-                    message.role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  <div
-                    className={`flex max-w-[85%] ${
-                      message.role === "user" ? "flex-row-reverse" : "flex-row"
-                    }`}
-                  >
-                    <div
-                      className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full shadow-md ${
-                        message.role === "user"
-                          ? "bg-gradient-to-br from-blue-600 to-blue-700 ml-3"
-                          : "bg-gradient-to-br from-purple-500 to-purple-600 mr-3"
+        <div className="flex h-full flex-col">
+          <div className="flex-1 overflow-y-auto px-6 py-8">
+            <div className="mx-auto max-w-3xl space-y-6">
+              <AnimatePresence>
+                {messages.map((message, index) => {
+                  const isUser = message.role === "user";
+                  const isError = message.content.startsWith("## ⚠️ Error");
+                  return (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 12 }}
+                      transition={{ duration: 0.28 }}
+                      className={`flex ${
+                        isUser ? "justify-end" : "justify-start"
                       }`}
                     >
-                      {message.role === "user" ? (
-                        <User className="h-5 w-5 text-white" />
-                      ) : (
-                        <Bot className="h-5 w-5 text-white" />
-                      )}
-                    </div>
-                    <div
-                      className={`group relative rounded-2xl px-5 py-3 shadow-md ${
-                        message.role === "user"
-                          ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white"
-                          : message.content.startsWith("## ⚠️ Error")
-                          ? "bg-red-50 text-slate-800 border-2 border-red-200"
-                          : "bg-white text-slate-800 border border-slate-200"
-                      }`}
-                    >
-                      {message.role === "assistant" ? (
-                        <div className="prose prose-slate max-w-none prose-pre:bg-slate-900 prose-pre:text-slate-100">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              code(props) {
-                                const { children, className, ...rest } = props;
-                                const match = /language-(\w+)/.exec(
-                                  className || ""
-                                );
-                                return match ? (
-                                  <SyntaxHighlighter
-                                    // @ts-expect-error - Type mismatch in react-syntax-highlighter
-                                    style={oneDark}
-                                    language={match[1]}
-                                    PreTag="div"
-                                    {...rest}
-                                  >
-                                    {String(children).replace(/\n$/, "")}
-                                  </SyntaxHighlighter>
-                                ) : (
-                                  <code className={className} {...rest}>
-                                    {children}
-                                  </code>
-                                );
-                              },
-                            }}
-                          >
-                            {message.content}
-                          </ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p className="whitespace-pre-wrap">{message.content}</p>
-                      )}
-
-                      {message.role === "assistant" && (
-                        <button
-                          onClick={() =>
-                            copyToClipboard(message.content, index)
-                          }
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-slate-100"
-                          title="Copy to clipboard"
+                      <div
+                        className={`flex max-w-[86%] ${
+                          isUser ? "flex-row-reverse" : "flex-row"
+                        }`}
+                      >
+                        <div
+                          className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full shadow ${
+                            isUser
+                              ? "bg-gradient-to-br from-[#0ea5e9] to-[#3b82f6]"
+                              : "bg-gradient-to-br from-[#7c3aed] to-[#06b6d4]"
+                          }`}
                         >
-                          {copiedIndex === index ? (
-                            <Check className="h-3.5 w-3.5 text-green-600" />
+                          {isUser ? (
+                            <User className="h-5 w-5 text-white" />
                           ) : (
-                            <Copy className="h-3.5 w-3.5 text-slate-400" />
+                            <Bot className="h-5 w-5 text-white" />
                           )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                        </div>
+
+                        <div
+                          className={`group relative rounded-2xl px-5 py-3 shadow-lg border ${
+                            isError
+                              ? "border-red-400/30 bg-rose-50/5 text-rose-200"
+                              : isUser
+                              ? "bg-gradient-to-br from-[#04102a]/80 to-[#05243a]/70 text-slate-100 border-white/6"
+                              : "bg-[#071029]/80 text-slate-200 border-white/6"
+                          }`}
+                          style={{
+                            boxShadow: isUser
+                              ? "0 10px 30px rgba(59,130,246,0.08), inset 0 1px 0 rgba(255,255,255,0.02)"
+                              : "0 10px 30px rgba(124,58,237,0.06), inset 0 1px 0 rgba(255,255,255,0.02)",
+                            backdropFilter: "saturate(120%) blur(6px)",
+                          }}
+                        >
+                          {message.role === "assistant" ? (
+                            <div className="prose prose-slate max-w-none prose-pre:bg-slate-900 prose-pre:text-slate-100">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  code(props) {
+                                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                    const { children, className, ref, ...rest } =
+                                      props;
+                                    const match = /language-(\w+)/.exec(
+                                      className || ""
+                                    );
+                                    return match ? (
+                                      <SyntaxHighlighter
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        style={oneDark as any}
+                                        language={match[1]}
+                                        PreTag="div"
+                                      >
+                                        {String(children).replace(/\n$/, "")}
+                                      </SyntaxHighlighter>
+                                    ) : (
+                                      <code
+                                        className={`${className} rounded px-1 py-[2px] bg-white/6`}
+                                        {...rest}
+                                      >
+                                        {children}
+                                      </code>
+                                    );
+                                  },
+                                  // style other elements minimally for dark mode
+                                  p: ({ ...props }) => (
+                                    <p
+                                      className="text-sm leading-relaxed text-slate-200"
+                                      {...props}
+                                    />
+                                  ),
+                                  a: ({ ...props }) => (
+                                    <a
+                                      className="underline text-sky-300 hover:text-sky-200"
+                                      {...props}
+                                    />
+                                  ),
+                                  li: ({ ...props }) => (
+                                    <li
+                                      className="text-sm text-slate-200"
+                                      {...props}
+                                    />
+                                  ),
+                                }}
+                              >
+                                {message.content}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap text-sm text-slate-100">
+                              {message.content}
+                            </p>
+                          )}
+
+                          {/* Actions */}
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            {message.role === "assistant" && (
+                              <button
+                                onClick={() =>
+                                  copyToClipboard(message.content, index)
+                                }
+                                title="Copy assistant message"
+                                className="rounded p-1 hover:bg-white/4 transition"
+                              >
+                                {copiedIndex === index ? (
+                                  <Check className="h-4 w-4 text-emerald-400" />
+                                ) : (
+                                  <Copy className="h-4 w-4 text-slate-300" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
 
               {isTyping && (
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
+                  exit={{ opacity: 0, y: 12 }}
+                  transition={{ duration: 0.25 }}
                   className="flex justify-start"
                 >
-                  <div className="flex flex-row">
-                    <div className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-600 shadow-md">
+                  <div className="flex">
+                    <div className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7c3aed] to-[#06b6d4] shadow">
                       <Bot className="h-5 w-5 text-white" />
                     </div>
-                    <div className="rounded-2xl bg-white px-5 py-3 shadow-md border border-slate-200">
-                      <div className="flex space-x-1.5">
+                    <div className="rounded-2xl bg-[#071029]/80 p-3 border border-white/6 shadow">
+                      <div className="flex items-center space-x-2">
                         <div
-                          className="h-2 w-2 animate-bounce rounded-full bg-purple-400"
+                          className="h-2 w-2 animate-bounce rounded-full bg-[#a78bfa]"
                           style={{ animationDelay: "0ms" }}
                         ></div>
                         <div
-                          className="h-2 w-2 animate-bounce rounded-full bg-purple-400"
-                          style={{ animationDelay: "150ms" }}
+                          className="h-2 w-2 animate-bounce rounded-full bg-[#a78bfa]"
+                          style={{ animationDelay: "120ms" }}
                         ></div>
                         <div
-                          className="h-2 w-2 animate-bounce rounded-full bg-purple-400"
-                          style={{ animationDelay: "300ms" }}
+                          className="h-2 w-2 animate-bounce rounded-full bg-[#a78bfa]"
+                          style={{ animationDelay: "240ms" }}
                         ></div>
                       </div>
                     </div>
                   </div>
                 </motion.div>
               )}
-            </AnimatePresence>
-            <div ref={endOfMessagesRef} />
+
+              <div ref={endOfMessagesRef} />
+            </div>
           </div>
+
+          {/* Footer / input */}
+          <footer className="border-t border-white/6 bg-gradient-to-t from-transparent to-black/20 px-6 py-4">
+            {messages.length > 1 &&
+              messages[messages.length - 1].role === "assistant" && (
+                <div className="flex justify-center mb-3">
+                  <button
+                    onClick={regenerateResponse}
+                    disabled={isLoading}
+                    className="flex items-center text-xs text-slate-300 hover:text-white disabled:opacity-50 transition"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1.5" />
+                    Regenerate response
+                  </button>
+                </div>
+              )}
+
+            <form
+              onSubmit={handleSubmit}
+              className="max-w-3xl mx-auto flex items-center gap-3"
+            >
+              <div className="flex-1 relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your message..."
+                  className="w-full rounded-full border border-white/8 bg-[#041022]/70 px-5 py-3 text-sm text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 transition"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || input.trim() === ""}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#7c3aed] via-[#d946ef] to-[#fb7185] text-white shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50"
+                aria-label="Send message"
+              >
+                <Send className="h-5 w-5" />
+              </button>
+            </form>
+
+            <p className="text-center text-xs text-slate-400 mt-3">
+              Press Enter to send • {messages.length} messages
+            </p>
+          </footer>
         </div>
       </main>
-
-      <footer className="border-t border-slate-200 bg-white/80 backdrop-blur-md py-4 px-6 shadow-lg">
-        {messages.length > 1 &&
-          messages[messages.length - 1].role === "assistant" && (
-            <div className="flex justify-center mb-3">
-              <button
-                onClick={regenerateResponse}
-                disabled={isLoading}
-                className="flex items-center text-xs text-slate-600 hover:text-slate-900 disabled:opacity-50"
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Regenerate response
-              </button>
-            </div>
-          )}
-        <form
-          onSubmit={handleSubmit}
-          className="flex items-center max-w-4xl mx-auto"
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 rounded-full border border-slate-300 bg-white px-5 py-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={isLoading || input.trim() === ""}
-            className="ml-3 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg transition-all hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
-          >
-            <Send className="h-5 w-5" />
-          </button>
-        </form>
-        <p className="text-center text-xs text-slate-500 mt-3">
-          Press Enter to send • {messages.length} messages
-        </p>
-      </footer>
     </div>
   );
 }
-
-
