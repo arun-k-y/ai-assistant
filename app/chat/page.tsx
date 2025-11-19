@@ -283,12 +283,13 @@ export default function ChatPage() {
       setTimeout(() => setCopied(false), 2000);
     };
 
-    if (!inline && match) {
+    if (!inline) {
+      const language = match ? match[1] : "text";
       return (
         <div className="my-4 overflow-hidden rounded-lg border border-[#303134] bg-[#1e1f20]">
           <div className="flex items-center justify-between bg-[#2d2e30] px-4 py-2 border-b border-[#303134]">
             <span className="text-xs font-medium text-[#9aa0a6] uppercase">
-              {match[1]}
+              {language}
             </span>
             <button
               onClick={handleCopy}
@@ -301,7 +302,7 @@ export default function ChatPage() {
           <div className="p-4 overflow-x-auto">
             <SyntaxHighlighter
               style={vscDarkPlus}
-              language={match[1]}
+              language={language}
               PreTag="div"
               customStyle={{ margin: 0, background: "transparent" }}
               {...props}
@@ -345,19 +346,19 @@ export default function ChatPage() {
               <div
                 key={chat.id}
                 onClick={() => switchConversation(chat.id)}
-                className={`group flex items - center gap - 3 px - 3 py - 2 rounded - full cursor - pointer text - sm transition - colors ${currentConversationId === chat.id
-                  ? "bg-[#004a77] text-[#c2e7ff] font-medium"
-                  : "text-[#e3e3e3] hover:bg-[#303134]"
-                  } `}
+                className={`group flex items-center gap-3 px-3 py-2 rounded-full cursor-pointer text-sm transition-colors ${currentConversationId === chat.id
+                  ? "bg-[#303134] text-[#e3e3e3]"
+                  : "text-[#9aa0a6] hover:bg-[#303134]/50 hover:text-[#e3e3e3]"
+                  }`}
               >
-                <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate flex-1">{chat.title}</span>
+                <MessageSquare className="h-4 w-4" />
+                <span className="flex-1 truncate">{chat.title}</span>
                 <button
                   onClick={(e) => deleteConversation(e, chat.id)}
-                  className={`opacity - 0 group - hover: opacity - 100 p - 1 hover: bg - black / 20 rounded - full transition - opacity ${currentConversationId === chat.id ? "opacity-100" : ""
-                    } `}
+                  className={`opacity-0 group-hover:opacity-100 p-1 hover:bg-black/20 rounded-full transition-opacity ${currentConversationId === chat.id ? "opacity-100" : ""
+                    }`}
                 >
-                  <Trash2 className="h-3.5 w-3.5 text-[#9aa0a6]" />
+                  <Trash2 className="h-3.5 w-3.5 text-[#9aa0a6] hover:text-[#f28b82]" />
                 </button>
               </div>
             ))}
@@ -429,17 +430,17 @@ export default function ChatPage() {
               </div>
             ) : (
               messages.map((msg, idx) => (
-                <div key={idx} className={`flex gap - 4 ${msg.role === "user" ? "flex-row-reverse" : ""} `}>
-                  <div className={`flex - shrink - 0 h - 8 w - 8 rounded - full flex items - center justify - center ${msg.role === "user" ? "bg-[#8ab4f8] text-[#202124]" : "bg-gradient-to-br from-[#8ab4f8] to-[#81c995] text-[#202124]"
-                    } `}>
+                <div key={idx} className={`flex gap-4 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                  <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${msg.role === "user" ? "bg-[#8ab4f8] text-[#202124]" : "bg-gradient-to-br from-[#8ab4f8] to-[#81c995] text-[#202124]"
+                    }`}>
                     {msg.role === "user" ? <User className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
                   </div>
 
-                  <div className={`flex - 1 max - w - [85 %] min - w - 0 ${msg.role === "user" ? "text-right" : "text-left"} `}>
+                  <div className={`flex-1 max-w-[85%] min-w-0 ${msg.role === "user" ? "text-right" : "text-left"}`}>
                     <div className={`${msg.role === "user"
                       ? "inline-block text-left bg-[#303134] text-[#e3e3e3] px-5 py-3 rounded-2xl rounded-tr-sm"
                       : "block w-full text-[#e3e3e3] px-0 py-0"
-                      } `}>
+                      }`}>
                       {msg.role === "user" ? (
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       ) : (
