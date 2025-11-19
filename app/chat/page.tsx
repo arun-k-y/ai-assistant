@@ -50,6 +50,67 @@ interface ChatSettings {
   systemPrompt?: string;
 }
 
+type AuraMode = "default" | "coding" | "creative" | "error" | "success";
+
+const auraThemes: Record<AuraMode, {
+  bg: string;
+  aurora: string;
+  accent: string;
+  userBubble: string;
+  button: string;
+  glow: string;
+}> = {
+  default: {
+    bg: "radial-gradient(circle at 50% 0%, #1e1b4b 0%, #020617 100%)",
+    aurora: "from-indigo-500/10 via-purple-500/5 to-transparent",
+    accent: "from-indigo-600 to-purple-600",
+    userBubble: "bg-gradient-to-br from-indigo-500 to-blue-600",
+    button: "bg-gradient-to-tr from-indigo-600 to-purple-600",
+    glow: "from-indigo-500 via-purple-500 to-pink-500",
+  },
+  coding: {
+    bg: "radial-gradient(circle at 50% 0%, #0f172a 0%, #020617 100%)",
+    aurora: "from-cyan-500/10 via-blue-500/5 to-transparent",
+    accent: "from-cyan-600 to-blue-600",
+    userBubble: "bg-gradient-to-br from-cyan-500 to-blue-600",
+    button: "bg-gradient-to-tr from-cyan-600 to-blue-600",
+    glow: "from-cyan-500 via-blue-500 to-indigo-500",
+  },
+  creative: {
+    bg: "radial-gradient(circle at 50% 0%, #2a0a18 0%, #020617 100%)",
+    aurora: "from-pink-500/10 via-rose-500/5 to-transparent",
+    accent: "from-pink-600 to-rose-600",
+    userBubble: "bg-gradient-to-br from-pink-500 to-rose-600",
+    button: "bg-gradient-to-tr from-pink-600 to-rose-600",
+    glow: "from-pink-500 via-rose-500 to-orange-500",
+  },
+  error: {
+    bg: "radial-gradient(circle at 50% 0%, #2a0a0a 0%, #020617 100%)",
+    aurora: "from-red-500/10 via-orange-500/5 to-transparent",
+    accent: "from-red-600 to-orange-600",
+    userBubble: "bg-gradient-to-br from-red-500 to-orange-600",
+    button: "bg-gradient-to-tr from-red-600 to-orange-600",
+    glow: "from-red-500 via-orange-500 to-yellow-500",
+  },
+  success: {
+    bg: "radial-gradient(circle at 50% 0%, #062c18 0%, #020617 100%)",
+    aurora: "from-emerald-500/10 via-green-500/5 to-transparent",
+    accent: "from-emerald-600 to-teal-600",
+    userBubble: "bg-gradient-to-br from-emerald-500 to-teal-600",
+    button: "bg-gradient-to-tr from-emerald-600 to-teal-600",
+    glow: "from-emerald-500 via-green-500 to-teal-500",
+  },
+};
+
+const analyzeAura = (text: string): AuraMode => {
+  const lower = text.toLowerCase();
+  if (lower.includes("error") || lower.includes("fail") || lower.includes("crash") || lower.includes("exception") || lower.includes("bug")) return "error";
+  if (lower.includes("success") || lower.includes("great") || lower.includes("working") || lower.includes("thank") || lower.includes("perfect")) return "success";
+  if (lower.includes("code") || lower.includes("function") || lower.includes("api") || lower.includes("component") || lower.includes("react") || lower.includes("typescript")) return "coding";
+  if (lower.includes("create") || lower.includes("design") || lower.includes("story") || lower.includes("imagine") || lower.includes("write")) return "creative";
+  return "default";
+};
+
 export default function ChatPage() {
   /* -------------------------
      State & refs
@@ -109,6 +170,20 @@ export default function ChatPage() {
 
   const [autoScroll, setAutoScroll] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [aura, setAura] = useState<AuraMode>("default");
+
+  /* -------------------------
+     Aura Effect
+  ------------------------- */
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      const newAura = analyzeAura(lastMsg.content);
+      setAura(newAura);
+    } else {
+      setAura("default");
+    }
+  }, [messages]);
 
   /* -------------------------
      Load saved state on mount
@@ -244,7 +319,7 @@ export default function ChatPage() {
     const lastUser = messages[lastUserIndex];
     // restore input and submit
     setInput(lastUser.content);
-    setMessages((prev) => prev.filter((_, idx) => idx <= lastUserIndex));
+    setMessages((prev) => prev.filter((_, idx) => idx < lastUserIndex));
     setTimeout(() => {
       // submit programmatically
       (
@@ -641,7 +716,7 @@ export default function ChatPage() {
       .find((m) => m.role === "user");
     if (!lastUser) return;
     // trim messages up to that user and re-submit
-    const upTo = messages.indexOf(lastUser) + 1;
+    const upTo = messages.indexOf(lastUser);
     const snapshot = messages.slice(0, upTo);
     setMessages(snapshot);
     setInput(lastUser.content);
@@ -657,15 +732,15 @@ export default function ChatPage() {
   ------------------------- */
   return (
     <div
-      className="flex h-[100dvh] flex-col antialiased overflow-hidden relative"
+      className="flex h-[100dvh] flex-col antialiased overflow-hidden relative transition-colors duration-1000 ease-in-out"
       style={{
-        background: "radial-gradient(circle at 50% 0%, #1e1b4b 0%, #020617 100%)",
+        background: auraThemes[aura].bg,
         color: "var(--tw-prose-body, #e6eef8)",
       }}
     >
       {/* Aurora Background Effect */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/10 via-purple-500/5 to-transparent animate-aurora opacity-50 blur-3xl"></div>
+        <div className={`absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] ${auraThemes[aura].aurora} animate-aurora opacity-50 blur-3xl transition-all duration-1000`}></div>
       </div>
 
       {/* Sidebar (Desktop & Mobile Overlay) */}
@@ -689,7 +764,7 @@ export default function ChatPage() {
         >
           <div className="p-5 flex items-center justify-between border-b border-white/5">
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+              <div className={`h-9 w-9 rounded-xl bg-gradient-to-br ${auraThemes[aura].accent} flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-all duration-500`}>
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
               <span className="font-bold text-lg tracking-tight text-white">Lumina</span>
@@ -702,7 +777,7 @@ export default function ChatPage() {
           <div className="p-4">
             <button
               onClick={createNewChat}
-              className="w-full flex items-center gap-2 px-4 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.02] transition-all active:scale-95"
+              className={`w-full flex items-center gap-2 px-4 py-3.5 rounded-xl bg-gradient-to-r ${auraThemes[aura].button} text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.02] transition-all active:scale-95 duration-500`}
             >
               <Plus className="h-5 w-5" />
               New Chat
@@ -816,9 +891,9 @@ export default function ChatPage() {
                       >
                         <div className={`flex max-w-[90%] md:max-w-[85%] ${isUser ? "flex-row-reverse" : "flex-row"} items-start gap-4`}>
                           <div
-                            className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full shadow-lg ${isUser
-                              ? "bg-gradient-to-br from-indigo-500 to-blue-600 ring-2 ring-indigo-500/20"
-                              : "bg-gradient-to-br from-fuchsia-500 to-purple-600 ring-2 ring-purple-500/20"
+                            className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full shadow-lg transition-all duration-500 ${isUser
+                              ? `bg-gradient-to-br ${auraThemes[aura].accent} ring-2 ring-white/10`
+                              : `bg-gradient-to-br ${auraThemes[aura].accent} ring-2 ring-white/10`
                               }`}
                           >
                             {isUser ? (
@@ -829,10 +904,10 @@ export default function ChatPage() {
                           </div>
 
                           <div
-                            className={`group relative rounded-2xl px-6 py-4 shadow-xl backdrop-blur-md transition-all duration-200 min-w-0 ${isError
+                            className={`group relative rounded-2xl px-6 py-4 shadow-xl backdrop-blur-md transition-all duration-500 min-w-0 ${isError
                               ? "border border-rose-500/30 bg-rose-500/10 text-rose-200"
                               : isUser
-                                ? "bg-indigo-600/20 border border-indigo-500/20 text-white rounded-tr-sm"
+                                ? `${auraThemes[aura].userBubble} border border-white/10 text-white rounded-tr-sm`
                                 : "bg-slate-900/40 border border-white/10 text-slate-200 rounded-tl-sm"
                               }`}
                           >
@@ -969,14 +1044,14 @@ export default function ChatPage() {
                     exit={{ opacity: 0, y: 10 }}
                     className="flex items-start gap-4"
                   >
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg ring-2 ring-purple-500/20">
+                    <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${auraThemes[aura].accent} flex items-center justify-center shadow-lg ring-2 ring-white/10 transition-all duration-500`}>
                       <Bot className="h-5 w-5 text-white" />
                     </div>
                     <div className="rounded-2xl rounded-tl-sm bg-slate-900/40 border border-white/10 px-5 py-4 backdrop-blur-md">
                       <div className="flex items-center space-x-1.5">
-                        <div className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "0ms" }} />
-                        <div className="h-2 w-2 animate-bounce rounded-full bg-purple-400" style={{ animationDelay: "150ms" }} />
-                        <div className="h-2 w-2 animate-bounce rounded-full bg-fuchsia-400" style={{ animationDelay: "300ms" }} />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-white/50" style={{ animationDelay: "0ms" }} />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-white/50" style={{ animationDelay: "150ms" }} />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-white/50" style={{ animationDelay: "300ms" }} />
                       </div>
                     </div>
                   </motion.div>
@@ -1009,7 +1084,7 @@ export default function ChatPage() {
                 )}
 
                 <div className="relative group">
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-3xl opacity-30 group-hover:opacity-60 transition duration-500 blur"></div>
+                  <div className={`absolute -inset-0.5 bg-gradient-to-r ${auraThemes[aura].glow} rounded-3xl opacity-30 group-hover:opacity-60 transition-all duration-1000 blur`}></div>
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1033,9 +1108,10 @@ export default function ChatPage() {
                       disabled={isLoading}
                     />
                     <button
+                      id="chat-submit"
                       type="submit"
                       disabled={isLoading || !input.trim()}
-                      className="h-10 w-10 flex items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                      className={`h-10 w-10 flex items-center justify-center rounded-full bg-gradient-to-tr ${auraThemes[aura].button} text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 duration-500`}
                     >
                       {isLoading ? (
                         <RefreshCw className="h-5 w-5 animate-spin" />
