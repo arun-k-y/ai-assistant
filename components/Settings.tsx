@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Settings as SettingsIcon,
@@ -278,7 +278,7 @@ export default function Settings({
               className="w-full h-32 p-3 rounded-[4px] bg-[#303134] border border-[#303134] text-[#e3e3e3] placeholder:text-[#9aa0a6] focus:ring-2 focus:ring-[#8ab4f8] resize-none text-sm"
             />
             <p className="mt-2 text-xs text-[#9aa0a6]">
-              Define the AI's persona and behavior constraints.
+              Define the AI&apos;s persona and behavior constraints.
             </p>
           </section>
         </div>
