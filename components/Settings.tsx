@@ -23,7 +23,7 @@ interface ModelGroup {
 }
 
 /* ----------------------------
-    Custom Model Dropdown (NEON)
+    Custom Model Dropdown (Google Dark)
 ----------------------------- */
 function ModelDropdown({
   value,
@@ -37,42 +37,59 @@ function ModelDropdown({
   onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedLabel =
     groups.flatMap((g) => g.models).find((m) => m.name === value)
       ?.displayName || value;
 
+  // Close on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
-        className="w-full flex items-center justify-between px-4 py-2 rounded-lg bg-[#0b1020]/80 border border-white/10 text-slate-200 hover:bg-white/5 transition"
+        className="w-full flex items-center justify-between px-4 py-3 rounded-[4px] bg-[#303134] hover:bg-[#3c4043] text-[#e3e3e3] transition-colors text-left border border-[#303134]"
         onClick={() => setOpen((o) => !o)}
         disabled={loading}
       >
-        <span className="truncate text-sm">{selectedLabel}</span>
-        <ChevronDown className="w-4 h-4 text-slate-300" />
+        <span className="truncate font-medium text-[14px]">
+          {loading ? "Loading models..." : selectedLabel}
+        </span>
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-[#9aa0a6]" />
+        ) : (
+          <ChevronDown className={`h-5 w-5 text-[#9aa0a6] transition-transform ${open ? "rotate-180" : ""}`} />
+        )}
       </button>
 
       {open && (
-        <div className="absolute z-50 w-full mt-2 bg-[#060a18]/95 border border-white/10 rounded-lg shadow-xl backdrop-blur-md max-h-64 overflow-y-auto animate-slideUp p-1">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-[#1e1f20] rounded-lg shadow-lg border border-[#303134] z-50 max-h-60 overflow-y-auto py-2">
           {groups.map((group) => (
-            <div key={group.label} className="mb-3">
-              <div className="text-xs font-semibold text-slate-400 px-2 py-1">
+            <div key={group.label}>
+              <div className="px-4 py-2 text-xs font-semibold text-[#9aa0a6] uppercase tracking-wider">
                 {group.label}
               </div>
-
-              {group.models.map((m) => (
-                <div
-                  key={m.name}
-                  className={`px-3 py-2 rounded text-sm text-slate-200 cursor-pointer hover:bg-white/5 transition ${value === m.name ? "bg-white/10" : ""
-                    }`}
+              {group.models.map((model) => (
+                <button
+                  key={model.name}
                   onClick={() => {
-                    onChange(m.name);
+                    onChange(model.name);
                     setOpen(false);
                   }}
+                  className={`w-full text-left px-4 py-2 text-[14px] hover:bg-[#303134] transition-colors ${value === model.name ? "text-[#8ab4f8] font-medium bg-[#303134]" : "text-[#e3e3e3]"
+                    }`}
                 >
-                  {m.displayName || m.name}
-                </div>
+                  {model.displayName || model.name}
+                </button>
               ))}
             </div>
           ))}
@@ -83,346 +100,200 @@ function ModelDropdown({
 }
 
 /* ----------------------------
-    MAIN SETTINGS COMPONENT
+    Settings Component
 ----------------------------- */
-export default function Settings() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
-  const [modelGroups, setModelGroups] = useState<ModelGroup[]>([]);
-  const panelRef = useRef<HTMLDivElement>(null);
+interface ChatSettings {
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  systemPrompt?: string;
+}
 
-  const [settings, setSettings] = useState({
-    temperature: 0.7,
-    maxTokens: 2000,
-    modelName: "gpt-4o-mini",
-    stream: true,
-    systemPrompt: "",
-  });
+interface SettingsProps {
+  isOpen: boolean;
+  onClose: () => void;
+  settings: ChatSettings;
+  onSettingsChange: (newSettings: ChatSettings) => void;
+}
+
+export default function Settings({
+  isOpen,
+  onClose,
+  settings,
+  onSettingsChange,
+}: SettingsProps) {
+  const [mounted, setMounted] = useState(false);
+  const [models, setModels] = useState<ModelGroup[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    // Fetch models (mock or real)
+    setLoadingModels(true);
+    // Simulate fetch
+    setTimeout(() => {
+      setModels([
+        {
+          label: "Google Gemini",
+          models: [
+            { name: "gemini-pro", displayName: "Gemini Pro" },
+            { name: "gemini-ultra", displayName: "Gemini Ultra" },
+          ],
+        },
+        {
+          label: "OpenAI",
+          models: [
+            { name: "gpt-4", displayName: "GPT-4" },
+            { name: "gpt-3.5-turbo", displayName: "GPT-3.5 Turbo" },
+          ],
+        },
+      ]);
+      setLoadingModels(false);
+    }, 500);
   }, []);
 
-  /* Load saved settings */
+  // Close on ESC
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("chatSettings");
-      if (saved) setSettings(JSON.parse(saved));
-    } catch { }
-  }, []);
-
-  /* --------------------------
-      Model Groups
-  --------------------------- */
-  const getOpenAIModelGroups = useCallback((): ModelGroup[] => [], []);
-
-  const getFallbackModelGroups = useCallback(
-    (): ModelGroup[] => [
-      {
-        label: "🆓 Google Gemini (Free Tier)",
-        models: [
-          { name: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash (Free)" },
-          { name: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro (Free)" },
-          { name: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash (Free)" },
-          { name: "gemini-pro", displayName: "Gemini Pro Latest (Free)" },
-          { name: "gemini-flash", displayName: "Gemini Flash Latest (Free)" },
-        ],
-      },
-      ...getOpenAIModelGroups(),
-    ],
-    [getOpenAIModelGroups]
-  );
-
-  const organizeModels = useCallback(
-    (models: Model[]): ModelGroup[] => {
-      const gemini: Model[] = [];
-      const other: Model[] = [];
-
-      for (const m of models) {
-        const name = m.name.replace("models/", "");
-        if (name.includes("gemini")) gemini.push({ ...m, name });
-        else other.push({ ...m, name });
-      }
-
-      gemini.sort((a, b) => a.name.localeCompare(b.name));
-
-      const groups: ModelGroup[] = [];
-      if (gemini.length)
-        groups.push({ label: "🆓 Google Gemini (Free Tier)", models: gemini });
-      if (other.length) groups.push({ label: "Other Models", models: other });
-
-      return [...groups, ...getOpenAIModelGroups()];
-    },
-    [getOpenAIModelGroups]
-  );
-
-  /* --------------------------
-      Fetch models when panel opens
-  --------------------------- */
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const fetchModels = async () => {
-      setIsLoadingModels(true);
-      try {
-        const res = await fetch("/api/models");
-        if (!res.ok) {
-          setModelGroups(getFallbackModelGroups());
-          return;
-        }
-        const data = await res.json();
-        setModelGroups(organizeModels(data.models || []));
-      } catch {
-        setModelGroups(getFallbackModelGroups());
-      } finally {
-        setIsLoadingModels(false);
-      }
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
     };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
 
-    fetchModels();
-  }, [isOpen, organizeModels, getFallbackModelGroups]);
+  if (!mounted || !isOpen) return null;
 
-  /* --------------------------
-      Save settings handler
-  --------------------------- */
-  const handleSaveSettings = () => {
-    try {
-      localStorage.setItem("chatSettings", JSON.stringify(settings));
-      window.dispatchEvent(new CustomEvent("settingsUpdated"));
-      setIsOpen(false);
-    } catch {
-      // ignore save errors
-    }
-  };
-
-  /* --------------------------
-      Reload settings when opening panel
-  --------------------------- */
-  useEffect(() => {
-    if (isOpen) {
-      // Reload saved settings from localStorage when opening
-      try {
-        const saved = localStorage.getItem("chatSettings");
-        if (saved) setSettings(JSON.parse(saved));
-      } catch {
-        // ignore parse errors
-      }
-    }
-  }, [isOpen]);
-
-  /* --------------------------
-      Close on outside click
-  --------------------------- */
-  useEffect(() => {
-    if (!isOpen) return;
-
-    function handle(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handle);
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("mousedown", handle);
-      document.body.style.overflow = "unset";
-    };
-  }, [isOpen]);
-
-  /* --------------------------
-      The right-side sliding panel
-  --------------------------- */
-  const panel = isOpen ? (
-    <div className="fixed inset-0 z-[9999] flex justify-end bg-black/50 backdrop-blur-sm">
-      {/* SLIDING GLASS PANEL */}
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex justify-end">
+      {/* Backdrop */}
       <div
-        ref={panelRef}
-        className="w-full sm:w-[420px] h-full bg-[#060a18]/95 border-l border-white/10 shadow-2xl backdrop-blur-xl
-                   animate-slideLeft flex flex-col"
-      >
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <h3 className="text-lg font-semibold text-slate-100">Settings</h3>
+        className="absolute inset-0 bg-black/50 backdrop-blur-[2px] transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div className="relative w-full max-w-md bg-[#1e1f20] h-full shadow-2xl flex flex-col animate-slideLeft border-l border-[#303134]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#303134]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#303134] rounded-full">
+              <SettingsIcon className="h-5 w-5 text-[#8ab4f8]" />
+            </div>
+            <h2 className="text-xl font-medium text-[#e3e3e3]">Settings</h2>
+          </div>
           <button
-            onClick={() => setIsOpen(false)}
-            className="rounded p-2 hover:bg-white/10 transition"
+            onClick={onClose}
+            className="p-2 text-[#9aa0a6] hover:bg-[#303134] rounded-full transition-colors"
           >
-            <X className="h-5 w-5 text-slate-300" />
+            <X className="h-6 w-6" />
           </button>
         </div>
 
-        {/* Panel content */}
-        <div className="p-6 space-y-6 overflow-auto">
-          {/* MODEL */}
-          <div>
-            <div className="flex justify-between mb-1">
-              <label className="text-sm font-medium text-slate-300">
-                Model
-              </label>
-
-              {isLoadingModels && (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-              )}
-            </div>
-
-            <ModelDropdown
-              value={settings.modelName}
-              loading={isLoadingModels}
-              groups={modelGroups}
-              onChange={(name) =>
-                setSettings((prev) => ({ ...prev, modelName: name }))
-              }
-            />
-          </div>
-
-          {/* TEMPERATURE */}
-          <div>
-            <label className="text-sm font-medium text-slate-300">
-              Temperature: {settings.temperature}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {/* Model Selection */}
+          <section>
+            <label className="block text-sm font-medium text-[#e3e3e3] mb-2">
+              AI Model
             </label>
+            <ModelDropdown
+              value={settings.model}
+              groups={models}
+              loading={loadingModels}
+              onChange={(val) => onSettingsChange({ ...settings, model: val })}
+            />
+            <p className="mt-2 text-xs text-[#9aa0a6]">
+              Choose the intelligence engine for your conversation.
+            </p>
+          </section>
 
+          {/* Temperature */}
+          <section>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-medium text-[#e3e3e3]">
+                Creativity (Temperature)
+              </label>
+              <span className="text-sm font-medium text-[#8ab4f8] bg-[#303134] px-2 py-0.5 rounded">
+                {settings.temperature}
+              </span>
+            </div>
             <input
               type="range"
-              min="0"
-              max="1"
-              step="0.1"
+              min={0}
+              max={1}
+              step={0.1}
               value={settings.temperature}
               onChange={(e) =>
-                setSettings((p) => ({
-                  ...p,
-                  temperature: Number(e.target.value),
-                }))
+                onSettingsChange({
+                  ...settings,
+                  temperature: parseFloat(e.target.value),
+                })
               }
-              className="w-full accent-[#7c3aed]"
+              className="w-full h-2 bg-[#303134] rounded-lg appearance-none cursor-pointer accent-[#8ab4f8]"
             />
-          </div>
+            <div className="flex justify-between mt-2 text-xs text-[#9aa0a6]">
+              <span>Precise</span>
+              <span>Balanced</span>
+              <span>Creative</span>
+            </div>
+          </section>
 
-          {/* MAX TOKENS */}
-          <div>
-            <label className="text-sm font-medium text-slate-300">
-              Max Tokens: {settings.maxTokens}
-            </label>
-
+          {/* Max Tokens */}
+          <section>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-medium text-[#e3e3e3]">
+                Response Length
+              </label>
+              <span className="text-sm font-medium text-[#8ab4f8] bg-[#303134] px-2 py-0.5 rounded">
+                {settings.maxTokens} tokens
+              </span>
+            </div>
             <input
               type="range"
-              min="500"
-              max="8000"
-              step="100"
+              min={100}
+              max={4000}
+              step={100}
               value={settings.maxTokens}
               onChange={(e) =>
-                setSettings((p) => ({
-                  ...p,
-                  maxTokens: Number(e.target.value),
-                }))
+                onSettingsChange({
+                  ...settings,
+                  maxTokens: parseInt(e.target.value),
+                })
               }
-              className="w-full accent-[#7c3aed]"
+              className="w-full h-2 bg-[#303134] rounded-lg appearance-none cursor-pointer accent-[#8ab4f8]"
             />
-          </div>
+          </section>
 
-          {/* STREAM */}
-          <div className="flex justify-between items-center">
-            <label className="text-sm font-medium text-slate-300">
-              Stream Responses
-            </label>
-
-            <input
-              type="checkbox"
-              checked={settings.stream}
-              onChange={(e) =>
-                setSettings((p) => ({ ...p, stream: e.target.checked }))
-              }
-              className="h-5 w-5 accent-[#7c3aed]"
-            />
-          </div>
-
-          {/* SYSTEM PROMPT */}
-          <div>
-            <label className="text-sm font-medium text-slate-300 mb-1 block">
+          {/* System Instructions */}
+          <section>
+            <label className="block text-sm font-medium text-[#e3e3e3] mb-2">
               System Instructions
             </label>
             <textarea
               value={settings.systemPrompt || ""}
               onChange={(e) =>
-                setSettings((p) => ({ ...p, systemPrompt: e.target.value }))
+                onSettingsChange({ ...settings, systemPrompt: e.target.value })
               }
-              placeholder="e.g. You are a helpful coding assistant..."
-              className="w-full h-24 rounded-lg bg-[#0b1020]/80 border border-white/10 p-3 text-sm text-slate-200 placeholder:text-slate-500 focus:ring-2 focus:ring-[#7c3aed]/40 outline-none resize-none"
+              placeholder="You are a helpful AI assistant..."
+              className="w-full h-32 p-3 rounded-[4px] bg-[#303134] border border-[#303134] text-[#e3e3e3] placeholder:text-[#9aa0a6] focus:ring-2 focus:ring-[#8ab4f8] resize-none text-sm"
             />
-          </div>
+            <p className="mt-2 text-xs text-[#9aa0a6]">
+              Define the AI's persona and behavior constraints.
+            </p>
+          </section>
+        </div>
 
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={() => setIsOpen(false)}
-              className="flex-1 py-2 text-center rounded-lg text-slate-300 font-medium
-                         bg-white/5 border border-white/10 hover:bg-white/10 transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveSettings}
-              className="flex-1 py-2 text-center rounded-lg text-white font-semibold 
-                         bg-gradient-to-br from-[#7c3aed] via-[#d946ef] to-[#fb7185] 
-                         hover:scale-[1.02] transition shadow-lg"
-            >
-              Save Settings
-            </button>
-          </div>
+        {/* Footer */}
+        <div className="p-6 border-t border-[#303134] bg-[#1e1f20]">
+          <button
+            onClick={onClose}
+            className="w-full py-3 rounded-[4px] bg-[#8ab4f8] text-[#202124] font-medium hover:bg-[#aecbfa] hover:shadow transition-all"
+          >
+            Done
+          </button>
         </div>
       </div>
-    </div>
-  ) : null;
-
-  /* --------------------------
-      Render
-  --------------------------- */
-  return (
-    <>
-      <button
-        className="p-2 text-slate-300 hover:bg-white/5 rounded transition"
-        onClick={() => setIsOpen(true)}
-      >
-        <SettingsIcon className="h-5 w-5" />
-      </button>
-
-      {mounted && createPortal(panel, document.body)}
-    </>
+    </div>,
+    document.body
   );
 }
-
-/* ----------------------------
-    Animation classes
------------------------------ */
-/*
-Add this to globals.css:
-
-@keyframes slideLeft {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.animate-slideLeft {
-  animation: slideLeft 0.25s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-slideUp {
-  animation: slideUp 0.2s ease-out;
-}
-*/
