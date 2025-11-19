@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const { messages, settings, stream = false } = await request.json();
+    const { messages, settings, stream = false, systemPrompt } = await request.json();
 
     const temperature = settings?.temperature ?? 0.7;
     const maxTokens = settings?.maxTokens ?? 2000;
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const isOpenAI = modelName.startsWith("gpt");
 
     // SYSTEM MESSAGE
-    const systemMessage = `
+    const defaultSystemMessage = `
 You are a powerful AI assistant. Follow these rules:
 - Use markdown formatting.
 - Give clear, structured, accurate answers.
@@ -49,6 +49,8 @@ You are a powerful AI assistant. Follow these rules:
 - Do not hallucinate.
 `.trim();
 
+    const systemMessage = systemPrompt || defaultSystemMessage;
+
     // -----------------------------------------------------------------------
     // GEMINI (REST API) — 100% WORKING
     // -----------------------------------------------------------------------
@@ -56,7 +58,7 @@ You are a powerful AI assistant. Follow these rules:
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return NextResponse.json(
-          { 
+          {
             error: "Missing Gemini API Key",
             message: "Gemini API key is not configured. Please add GEMINI_API_KEY to your environment variables.",
             details: "Get your API key from https://makersuite.google.com/app/apikey"
@@ -131,8 +133,8 @@ You are a powerful AI assistant. Follow these rules:
               const errorMessage = err instanceof Error ? err.message : String(err);
               controller.enqueue(
                 encoder.encode(
-                  `data: ${JSON.stringify({ 
-                    error: true, 
+                  `data: ${JSON.stringify({
+                    error: true,
                     message: `Streaming error: ${errorMessage}`,
                     details: errorMessage
                   })}\n\n`
@@ -171,7 +173,7 @@ You are a powerful AI assistant. Follow these rules:
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
         return NextResponse.json(
-          { 
+          {
             error: "Missing OpenAI API Key",
             message: "OpenAI API key is not configured. Please add OPENAI_API_KEY to your environment variables.",
             details: "Get your API key from https://platform.openai.com/api-keys"
@@ -219,8 +221,8 @@ You are a powerful AI assistant. Follow these rules:
               const errorMessage = err instanceof Error ? err.message : String(err);
               controller.enqueue(
                 encoder.encode(
-                  `data: ${JSON.stringify({ 
-                    error: true, 
+                  `data: ${JSON.stringify({
+                    error: true,
                     message: `Streaming error: ${errorMessage}`,
                     details: errorMessage
                   })}\n\n`
@@ -269,11 +271,11 @@ You are a powerful AI assistant. Follow these rules:
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error("API ERROR:", err);
-    
+
     // Check for common API errors and provide helpful messages
     let message = "An unexpected error occurred while processing your request.";
     const details = errorMessage;
-    
+
     if (errorMessage.includes("API key")) {
       message = "There's an issue with your API key. Please check your configuration.";
     } else if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
@@ -283,7 +285,7 @@ You are a powerful AI assistant. Follow these rules:
     } else if (errorMessage.includes("model")) {
       message = "There's an issue with the selected model. Please try a different model.";
     }
-    
+
     return NextResponse.json(
       {
         error: "Request Failed",

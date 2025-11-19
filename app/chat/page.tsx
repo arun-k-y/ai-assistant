@@ -11,6 +11,12 @@ import {
   Check,
   Download,
   RefreshCw,
+  MessageSquare,
+  Plus,
+  Menu,
+  X,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
@@ -29,26 +35,61 @@ interface Message {
   error?: boolean;
 }
 
+interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  updatedAt: number;
+}
+
 interface ChatSettings {
   temperature: number;
   maxTokens: number;
   modelName: string;
   stream: boolean;
+  systemPrompt?: string;
 }
 
 export default function ChatPage() {
   /* -------------------------
      State & refs
   ------------------------- */
-  const [messages, setMessages] = useState<Message[]>(() => [
-    {
-      role: "assistant",
-      content:
-        "👋 Hi there! I'm your advanced AI assistant. How can I help you today?",
-      timestamp: Date.now(),
-      id: `m-${Date.now()}`,
-    },
-  ]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentId, setCurrentId] = useState<string>("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar toggle
+
+  // Derived state for current messages
+  const messages = conversations.find((c) => c.id === currentId)?.messages || [];
+
+  const setMessages = (
+    fn: ((prev: Message[]) => Message[]) | Message[]
+  ) => {
+    setConversations((prev) => {
+      const copy = [...prev];
+      const index = copy.findIndex((c) => c.id === currentId);
+      if (index === -1) return prev;
+
+      const newMessages = typeof fn === "function" ? fn(copy[index].messages) : fn;
+
+      // Auto-title if first user message
+      let newTitle = copy[index].title;
+      if (copy[index].messages.length <= 1 && newMessages.length > 1) {
+        const firstUserMsg = newMessages.find(m => m.role === "user");
+        if (firstUserMsg) {
+          newTitle = firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? "..." : "");
+        }
+      }
+
+      copy[index] = {
+        ...copy[index],
+        messages: newMessages,
+        title: newTitle,
+        updatedAt: Date.now(),
+      };
+      // Sort by updated
+      return copy.sort((a, b) => b.updatedAt - a.updatedAt);
+    });
+  };
 
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false); // indicates request in-flight
@@ -59,6 +100,7 @@ export default function ChatPage() {
     maxTokens: 2000,
     modelName: "gpt-4o-mini",
     stream: true,
+    systemPrompt: "",
   }));
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -73,10 +115,20 @@ export default function ChatPage() {
   ------------------------- */
   useEffect(() => {
     try {
-      const savedMessages = localStorage.getItem("chatMessages");
-      if (savedMessages) setMessages(JSON.parse(savedMessages));
+      const saved = localStorage.getItem("luminaConversations");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) {
+          setConversations(parsed);
+          setCurrentId(parsed[0].id);
+        } else {
+          createNewChat();
+        }
+      } else {
+        createNewChat();
+      }
     } catch {
-      /* ignore parse errors */
+      createNewChat();
     }
 
     try {
@@ -95,14 +147,15 @@ export default function ChatPage() {
   ------------------------- */
   useEffect(() => {
     try {
-      localStorage.setItem("chatMessages", JSON.stringify(messages));
-    } catch {}
-  }, [messages]);
+      localStorage.setItem("luminaConversations", JSON.stringify(conversations));
+    } catch { }
+  }, [conversations]);
 
   useEffect(() => {
     try {
       localStorage.setItem("chatSettings", JSON.stringify(settings));
-    } catch {}
+    } catch { }
+
   }, [settings]);
 
   /* -------------------------
@@ -281,8 +334,45 @@ export default function ChatPage() {
     }
   };
 
+  const createNewChat = () => {
+    const newId = crypto.randomUUID();
+    const newConv: Conversation = {
+      id: newId,
+      title: "New Chat",
+      messages: [
+        {
+          role: "assistant",
+          content: "👋 Hi! I'm Lumina. How can I help you today?",
+          timestamp: Date.now(),
+          id: `m-${Date.now()}`,
+        },
+      ],
+      updatedAt: Date.now(),
+    };
+    setConversations((prev) => [newConv, ...prev]);
+    setCurrentId(newId);
+    setIsSidebarOpen(false);
+    setAutoScroll(true);
+  };
+
+  const deleteChat = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setConversations((prev) => {
+      const filtered = prev.filter((c) => c.id !== id);
+      if (filtered.length === 0) {
+        // If deleted last one, create new
+        setTimeout(createNewChat, 0);
+        return [];
+      }
+      if (id === currentId) {
+        setCurrentId(filtered[0].id);
+      }
+      return filtered;
+    });
+  };
+
   const clearChat = () => {
-    setMessages([
+    setMessages(() => [
       {
         role: "assistant",
         content: "👋 Chat history cleared. How can I help you?",
@@ -324,6 +414,7 @@ export default function ChatPage() {
           })),
           settings,
           stream: settings.stream,
+          systemPrompt: settings.systemPrompt,
         }),
       });
 
@@ -332,7 +423,7 @@ export default function ChatPage() {
         let errorData: { message?: string; error?: string } | null = null;
         try {
           errorData = await res.json();
-        } catch {}
+        } catch { }
         const msg =
           errorData?.message ||
           errorData?.error ||
@@ -394,7 +485,7 @@ export default function ChatPage() {
           // server may stream SSE-like "data: {..}\n\n" chunks or raw text; attempt reasonable parsing
           const lines = chunk.split("\n");
           for (const line of lines) {
-            if (!line) continue;
+            if (!line || line.includes("[DONE]")) continue;
             let textChunk = line;
             // if server uses "data: " prefix
             if (line.startsWith("data: ")) textChunk = line.slice(6);
@@ -566,387 +657,402 @@ export default function ChatPage() {
   ------------------------- */
   return (
     <div
-      className="flex h-screen flex-col antialiased"
+      className="flex h-[100dvh] flex-col antialiased overflow-hidden relative"
       style={{
-        background:
-          "radial-gradient(600px 300px at 10% 10%, rgba(46, 48, 72, 0.55), transparent), " +
-          "radial-gradient(500px 220px at 90% 85%, rgba(124, 58, 237, 0.18), transparent), " +
-          "linear-gradient(180deg, #060617 0%, #071029 45%, #0b1220 100%)",
+        background: "radial-gradient(circle at 50% 0%, #1e1b4b 0%, #020617 100%)",
         color: "var(--tw-prose-body, #e6eef8)",
       }}
     >
-      {/* Header */}
-      <header className="border-b border-white/6 backdrop-blur-md bg-black/20">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex items-center gap-3 rounded-full p-1 hover:bg-white/3 transition"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#06b6d4] shadow-md">
-                <Bot className="h-5 w-5 text-white" />
+      {/* Aurora Background Effect */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/10 via-purple-500/5 to-transparent animate-aurora opacity-50 blur-3xl"></div>
+      </div>
+
+      {/* Sidebar (Desktop & Mobile Overlay) */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="flex flex-1 h-full relative z-10">
+        {/* Floating Glass Sidebar */}
+        <motion.div
+          className={`fixed inset-y-4 left-4 z-50 w-72 rounded-2xl glass-panel transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:inset-y-0 md:left-0 md:rounded-none md:border-r md:border-white/5 md:bg-black/20 flex flex-col ${isSidebarOpen ? "translate-x-0" : "-translate-x-[110%] md:translate-x-0"
+            }`}
+        >
+          <div className="p-5 flex items-center justify-between border-b border-white/5">
+            <Link href="/" className="flex items-center gap-3 group">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+                <Sparkles className="h-5 w-5 text-white" />
               </div>
-              <div className="hidden sm:block">
-                <div className="text-sm font-semibold bg-clip-text text-transparent bg-gradient-to-r from-[#A78BFA] to-[#60A5FA]">
-                  NeonAI
-                </div>
-                <div className="text-xs text-slate-300">
-                  {settings.modelName}
-                </div>
-              </div>
+              <span className="font-bold text-lg tracking-tight text-white">Lumina</span>
             </Link>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* PromptLibrary includes its own button with title "Prompt Library" */}
-            <PromptLibrary onSelectPrompt={(content) => setInput(content)} />
-            <button
-              onClick={exportChat}
-              title="Export chat"
-              className="rounded-md px-2 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/4 transition"
-              aria-label="Export chat"
-            >
-              <Download className="h-4 w-4" />
-            </button>
-
-            {/* Settings component opens its own side panel */}
-            <Settings />
-
-            <button
-              onClick={clearChat}
-              className="rounded-md px-3 py-2 text-sm font-medium bg-white/3 text-slate-200 hover:bg-white/6 transition"
-              aria-label="Clear chat"
-              title="Clear chat"
-            >
-              <Trash2 className="inline-block h-4 w-4 mr-2" />
-              Clear
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white transition">
+              <X className="h-5 w-5" />
             </button>
           </div>
-        </div>
-      </header>
 
-      {/* Chat area */}
-      <main className="flex-1 overflow-hidden">
-        <div className="flex h-full flex-col">
-          <div
-            ref={scrollContainerRef}
-            className="flex-1 overflow-y-auto px-6 py-8"
-          >
-            <div className="mx-auto max-w-3xl space-y-6">
-              <AnimatePresence initial={false}>
-                {messages.map((message, index) => {
-                  const isUser = message.role === "user";
-                  const isError =
-                    !!message.error ||
-                    (typeof message.content === "string" &&
-                      message.content.startsWith("## ⚠️ Error"));
-                  return (
-                    <motion.div
-                      key={message.id ?? index}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 6 }}
-                      transition={{ duration: 0.22 }}
-                      className={`flex ${
-                        isUser ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`flex max-w-[86%] ${
-                          isUser ? "flex-row-reverse" : "flex-row"
-                        } items-start gap-3`}
+          <div className="p-4">
+            <button
+              onClick={createNewChat}
+              className="w-full flex items-center gap-2 px-4 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.02] transition-all active:scale-95"
+            >
+              <Plus className="h-5 w-5" />
+              New Chat
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-1">
+            <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Recent</div>
+            {conversations.map((conv) => (
+              <div
+                key={conv.id}
+                onClick={() => {
+                  setCurrentId(conv.id);
+                  setIsSidebarOpen(false);
+                }}
+                className={`group flex items-center justify-between px-3 py-3 rounded-xl cursor-pointer transition-all ${conv.id === currentId
+                  ? "bg-white/10 text-white shadow-inner"
+                  : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  }`}
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <MessageSquare className={`h-4 w-4 flex-shrink-0 ${conv.id === currentId ? "text-indigo-400" : "text-slate-500"}`} />
+                  <span className="text-sm truncate font-medium">{conv.title}</span>
+                </div>
+
+                <button
+                  onClick={(e) => deleteChat(e, conv.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-rose-500/20 hover:text-rose-400 rounded-lg transition-all"
+                  title="Delete chat"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-4 border-t border-white/5 bg-black/20">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center border border-white/10">
+                <User className="h-4 w-4 text-slate-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-white truncate">User</div>
+                <div className="text-xs text-slate-500 truncate">Pro Plan</div>
+              </div>
+              <Settings />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col h-full relative">
+          {/* Floating Header */}
+          <header className="absolute top-0 left-0 right-0 z-20 px-6 py-4 flex items-center justify-between pointer-events-none">
+            <div className="pointer-events-auto md:hidden">
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-xl text-slate-300 hover:text-white transition shadow-lg"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="pointer-events-auto ml-auto flex items-center gap-3">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/20 backdrop-blur-md border border-white/5 text-xs font-medium text-slate-400">
+                <Zap className="h-3 w-3 text-yellow-400" />
+                {settings.modelName}
+              </div>
+
+              <PromptLibrary onSelectPrompt={(content) => setInput(content)} />
+
+              <button
+                onClick={exportChat}
+                className="p-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition shadow-lg"
+                title="Export chat"
+              >
+                <Download className="h-4 w-4" />
+              </button>
+
+              <button
+                onClick={clearChat}
+                className="p-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-xl text-slate-300 hover:text-rose-400 hover:bg-rose-500/10 transition shadow-lg"
+                title="Clear chat"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </header>
+
+          {/* Chat Messages */}
+          <main className="flex-1 overflow-hidden relative flex flex-col">
+            <div
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto px-4 md:px-8 pt-24 pb-32 scroll-smooth"
+            >
+              <div className="mx-auto max-w-3xl space-y-8">
+                <AnimatePresence initial={false}>
+                  {messages.map((message, index) => {
+                    const isUser = message.role === "user";
+                    const isError =
+                      !!message.error ||
+                      (typeof message.content === "string" &&
+                        message.content.startsWith("## ⚠️ Error"));
+                    return (
+                      <motion.div
+                        key={message.id ?? index}
+                        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                        className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                       >
-                        <div
-                          className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full shadow ${
-                            isUser
-                              ? "bg-gradient-to-br from-[#0ea5e9] to-[#3b82f6]"
-                              : "bg-gradient-to-br from-[#7c3aed] to-[#06b6d4]"
-                          }`}
-                        >
-                          {isUser ? (
-                            <User className="h-5 w-5 text-white" />
-                          ) : (
-                            <Bot className="h-5 w-5 text-white" />
-                          )}
-                        </div>
-
-                        <div
-                          className={`group relative rounded-2xl px-5 py-3 border transition-all duration-200 select-text ${
-                            isError
-                              ? "border-red-400/30 bg-rose-50/5 text-rose-200"
-                              : isUser
-                              ? "bg-gradient-to-br from-[#04102a]/80 to-[#05243a]/70 text-slate-100 border-white/6"
-                              : "bg-[#071029]/80 text-slate-200 border-white/6"
-                          }`}
-                          style={{
-                            boxShadow: isUser
-                              ? "0 12px 30px rgba(59,130,246,0.07), inset 0 1px 0 rgba(255,255,255,0.02)"
-                              : "0 12px 30px rgba(124,58,237,0.06), inset 0 1px 0 rgba(255,255,255,0.02)",
-                            backdropFilter: "saturate(120%) blur(6px)",
-                          }}
-                        >
-                          {/* Message content (markdown for assistant) */}
-                          {message.role === "assistant" ? (
-                            <div className="prose prose-slate max-w-none prose-pre:bg-slate-900 prose-pre:text-slate-100 prose-pre:overflow-x-auto prose-pre:max-w-full">
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                  code({
-                                    className,
-                                    children,
-                                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                                    ref: _ref,
-                                    ...props
-                                  }) {
-                                    const match = /language-(\w+)/.exec(
-                                      className || ""
-                                    );
-                                    if (match) {
-                                      return (
-                                        <div className="overflow-x-auto max-w-full rounded-lg my-4">
-                                          <SyntaxHighlighter
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            style={oneDark as any}
-                                            language={match[1]}
-                                            PreTag="div"
-                                            customStyle={{
-                                              margin: 0,
-                                              borderRadius: "0.5rem",
-                                              fontSize: "0.875rem",
-                                            }}
-                                          >
-                                            {String(children).replace(
-                                              /\n$/,
-                                              ""
-                                            )}
-                                          </SyntaxHighlighter>
-                                        </div>
-                                      );
-                                    }
-                                    return (
-                                      <code
-                                        className="rounded px-1.5 py-0.5 bg-slate-800/80 text-purple-300 border border-purple-500/20 text-sm font-mono"
-                                        {...props}
-                                      >
-                                        {children}
-                                      </code>
-                                    );
-                                  },
-                                  p: ({ ...props }) => (
-                                    <p
-                                      className="text-sm leading-relaxed text-slate-200"
-                                      {...props}
-                                    />
-                                  ),
-                                  a: ({ ...props }) => (
-                                    <a
-                                      className="underline text-sky-300 hover:text-sky-200"
-                                      {...props}
-                                    />
-                                  ),
-                                  li: ({ ...props }) => (
-                                    <li
-                                      className="text-sm text-slate-200"
-                                      {...props}
-                                    />
-                                  ),
-                                }}
-                              >
-                                {message.content}
-                              </ReactMarkdown>
-                            </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap text-sm text-slate-100">
-                              {message.content}
-                            </p>
-                          )}
-
-                          {/* Action buttons (copy / retry) */}
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                            {message.role === "assistant" && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    copyToClipboard(message.content, index)
-                                  }
-                                  title="Copy message"
-                                  className="rounded p-1 hover:bg-white/4 transition"
-                                  aria-label={`Copy message ${index}`}
-                                >
-                                  {copiedIndex === index ? (
-                                    <Check className="h-4 w-4 text-emerald-400" />
-                                  ) : (
-                                    <Copy className="h-4 w-4 text-slate-300" />
-                                  )}
-                                </button>
-
-                                {message.error && (
-                                  <button
-                                    onClick={() => retryMessage(index)}
-                                    title="Retry message"
-                                    className="rounded p-1 hover:bg-white/4 transition"
-                                    aria-label={`Retry message ${index}`}
-                                  >
-                                    <RefreshCw className="h-4 w-4 text-slate-300" />
-                                  </button>
-                                )}
-                              </>
+                        <div className={`flex max-w-[90%] md:max-w-[85%] ${isUser ? "flex-row-reverse" : "flex-row"} items-start gap-4`}>
+                          <div
+                            className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full shadow-lg ${isUser
+                              ? "bg-gradient-to-br from-indigo-500 to-blue-600 ring-2 ring-indigo-500/20"
+                              : "bg-gradient-to-br from-fuchsia-500 to-purple-600 ring-2 ring-purple-500/20"
+                              }`}
+                          >
+                            {isUser ? (
+                              <User className="h-5 w-5 text-white" />
+                            ) : (
+                              <Bot className="h-5 w-5 text-white" />
                             )}
                           </div>
 
-                          {/* timestamp on hover */}
-                          <div className="absolute -bottom-5 left-3 opacity-0 group-hover:opacity-100 transition text-[11px] text-slate-400">
-                            {formatTime(message.timestamp)}
+                          <div
+                            className={`group relative rounded-2xl px-6 py-4 shadow-xl backdrop-blur-md transition-all duration-200 min-w-0 ${isError
+                              ? "border border-rose-500/30 bg-rose-500/10 text-rose-200"
+                              : isUser
+                                ? "bg-indigo-600/20 border border-indigo-500/20 text-white rounded-tr-sm"
+                                : "bg-slate-900/40 border border-white/10 text-slate-200 rounded-tl-sm"
+                              }`}
+                          >
+                            {/* Message content */}
+                            {message.role === "assistant" ? (
+                              <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    pre: ({ children }) => <>{children}</>,
+                                    code({
+                                      className,
+                                      children,
+                                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                      ref: _ref,
+                                      ...props
+                                    }) {
+                                      const match = /language-(\w+)/.exec(className || "");
+                                      const isBlock = match || String(children).includes("\n");
+
+                                      if (isBlock) {
+                                        return (
+                                          <div className="w-full max-w-full my-4 rounded-xl overflow-hidden border border-white/10 bg-[#1e1e1e] shadow-2xl">
+                                            <div className="flex items-center justify-between px-4 py-2.5 bg-[#252526] border-b border-white/5">
+                                              <div className="flex items-center gap-2">
+                                                <div className="flex gap-1.5">
+                                                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/20"></div>
+                                                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20"></div>
+                                                  <div className="w-2.5 h-2.5 rounded-full bg-green-500/20"></div>
+                                                </div>
+                                                <span className="text-xs font-medium text-slate-400 lowercase ml-2">
+                                                  {match ? match[1] : "text"}
+                                                </span>
+                                              </div>
+                                              <button
+                                                onClick={() => copyToClipboard(String(children), index)}
+                                                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition bg-white/5 hover:bg-white/10 px-2 py-1 rounded-md"
+                                              >
+                                                {copiedIndex === index ? (
+                                                  <>
+                                                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                                    <span className="text-emerald-400">Copied!</span>
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                    <span>Copy</span>
+                                                  </>
+                                                )}
+                                              </button>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                              <SyntaxHighlighter
+                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                style={oneDark as any}
+                                                language={match ? match[1] : "text"}
+                                                PreTag="div"
+                                                customStyle={{
+                                                  margin: 0,
+                                                  padding: "1.5rem",
+                                                  background: "#1e1e1e",
+                                                  fontSize: "0.9rem",
+                                                  lineHeight: "1.6",
+                                                }}
+                                                wrapLongLines={true}
+                                              >
+                                                {String(children).replace(/\n$/, "")}
+                                              </SyntaxHighlighter>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <code
+                                          className="rounded-md px-1.5 py-0.5 bg-white/10 text-slate-200 border border-white/10 text-sm font-mono"
+                                          {...props}
+                                        >
+                                          {children}
+                                        </code>
+                                      );
+                                    },
+                                    p: ({ ...props }) => <p className="mb-4 last:mb-0" {...props} />,
+                                    a: ({ ...props }) => <a className="text-indigo-400 hover:text-indigo-300 underline decoration-indigo-400/30 underline-offset-2 transition-colors" {...props} />,
+                                    ul: ({ ...props }) => <ul className="list-disc pl-4 mb-4 space-y-1 marker:text-indigo-500" {...props} />,
+                                    ol: ({ ...props }) => <ol className="list-decimal pl-4 mb-4 space-y-1 marker:text-indigo-500" {...props} />,
+                                  }}
+                                >
+                                  {message.content}
+                                </ReactMarkdown>
+                              </div>
+                            ) : (
+                              <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-100">
+                                {message.content}
+                              </p>
+                            )}
+
+                            {/* Action buttons */}
+                            <div className="absolute -bottom-8 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                              {message.role === "assistant" && (
+                                <>
+                                  <button
+                                    onClick={() => copyToClipboard(message.content, index)}
+                                    className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
+                                    title="Copy"
+                                  >
+                                    {copiedIndex === index ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                  </button>
+                                  <button
+                                    onClick={() => retryMessage(index)}
+                                    className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
+                                    title="Retry"
+                                  >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+
+                            <div className="absolute -bottom-6 left-0 opacity-0 group-hover:opacity-100 transition text-[10px] text-slate-500 font-medium">
+                              {formatTime(message.timestamp)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
 
-              {/* Typing indicator */}
-              {isTyping && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex"
-                >
-                  <div className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7c3aed] to-[#06b6d4] shadow">
-                    <Bot className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="rounded-2xl bg-[#071029]/80 p-3 border border-white/6 shadow">
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className="h-2 w-2 animate-bounce rounded-full bg-[#a78bfa]"
-                        style={{ animationDelay: "0ms" }}
-                      />
-                      <div
-                        className="h-2 w-2 animate-bounce rounded-full bg-[#a78bfa]"
-                        style={{ animationDelay: "120ms" }}
-                      />
-                      <div
-                        className="h-2 w-2 animate-bounce rounded-full bg-[#a78bfa]"
-                        style={{ animationDelay: "240ms" }}
-                      />
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              <div ref={endOfMessagesRef} />
-            </div>
-          </div>
-
-          {/* Scroll-to-bottom floating button */}
-          {!autoScroll && (
-            <button
-              onClick={() => {
-                endOfMessagesRef.current?.scrollIntoView({
-                  behavior: "smooth",
-                });
-                setAutoScroll(true);
-                setUnreadCount(0);
-              }}
-              className="fixed bottom-28 right-6 z-50 flex items-center gap-2 rounded-full px-3 py-2 bg-gradient-to-br from-[#7c3aed] to-[#06b6d4] text-white shadow-lg hover:scale-105 transition"
-              aria-label="Scroll to bottom"
-              title="Scroll to bottom"
-            >
-              <span className="text-sm">↓</span>
-              {unreadCount > 0 && (
-                <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-          )}
-
-          {/* Footer / input */}
-          <footer className="border-t border-white/6 bg-gradient-to-t from-transparent to-black/20 px-6 py-4">
-            {messages.length > 1 &&
-              messages[messages.length - 1].role === "assistant" && (
-                <div className="flex justify-center mb-3">
-                  <button
-                    onClick={regenerateResponse}
-                    disabled={isLoading}
-                    className="flex items-center text-xs text-slate-300 hover:text-white disabled:opacity-50 transition"
-                    aria-label="Regenerate response"
+                {/* Typing indicator */}
+                {isTyping && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="flex items-start gap-4"
                   >
-                    <RefreshCw className="h-4 w-4 mr-1.5" />
-                    Regenerate
-                  </button>
-                </div>
-              )}
+                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center shadow-lg ring-2 ring-purple-500/20">
+                      <Bot className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="rounded-2xl rounded-tl-sm bg-slate-900/40 border border-white/10 px-5 py-4 backdrop-blur-md">
+                      <div className="flex items-center space-x-1.5">
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "0ms" }} />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-purple-400" style={{ animationDelay: "150ms" }} />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-fuchsia-400" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSubmit();
-              }}
-              className="max-w-3xl mx-auto flex items-end gap-3"
-            >
-              <div className="flex-1 relative">
-                <textarea
-                  ref={inputRef}
-                  id="chat-input"
-                  value={input}
-                  onChange={handleTextareaInput}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
+                <div ref={endOfMessagesRef} />
+              </div>
+            </div>
+
+            {/* Floating Command Bar (Footer) */}
+            <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-[#020617] via-[#020617]/80 to-transparent z-20">
+              <div className="max-w-3xl mx-auto relative">
+                {/* Scroll to bottom button */}
+                {!autoScroll && (
+                  <button
+                    onClick={() => {
+                      endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+                      setAutoScroll(true);
+                      setUnreadCount(0);
+                    }}
+                    className="absolute -top-16 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full px-4 py-2 bg-indigo-600 text-white shadow-xl shadow-indigo-500/30 hover:scale-105 transition-transform z-30"
+                  >
+                    <span className="text-sm font-medium">New messages</span>
+                    {unreadCount > 0 && (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-indigo-600">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-3xl opacity-30 group-hover:opacity-60 transition duration-500 blur"></div>
+                  <form
+                    onSubmit={(e) => {
                       e.preventDefault();
                       handleSubmit();
-                    }
-                  }}
-                  rows={1}
-                  placeholder="Type your message — Shift+Enter for a new line"
-                  className="w-full resize-none overflow-hidden rounded-2xl border border-white/8 bg-[#041022]/70 px-5 py-3 text-sm text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/30 transition"
-                  disabled={isLoading}
-                  aria-label="Chat input"
-                />
-
-                {/* small helper / hint */}
-                <div className="absolute right-3 bottom-2 text-[11px] text-slate-400 select-none">
-                  Shift+Enter ↵ for newline
+                    }}
+                    className="relative flex items-end gap-2 bg-[#0f172a]/90 backdrop-blur-xl rounded-3xl border border-white/10 p-2 shadow-2xl"
+                  >
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={handleTextareaInput}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSubmit();
+                        }
+                      }}
+                      rows={1}
+                      placeholder="Ask Lumina anything..."
+                      className="flex-1 max-h-40 min-h-[44px] py-3 px-4 bg-transparent text-slate-200 placeholder:text-slate-500 focus:outline-none resize-none text-[15px] leading-relaxed scrollbar-hide"
+                      disabled={isLoading}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isLoading || !input.trim()}
+                      className="h-10 w-10 flex items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                    >
+                      {isLoading ? (
+                        <RefreshCw className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Send className="h-5 w-5 ml-0.5" />
+                      )}
+                    </button>
+                  </form>
+                </div>
+                <div className="text-center mt-3 text-[11px] text-slate-500 font-medium">
+                  Lumina can make mistakes. Check important info.
                 </div>
               </div>
-
-              <button
-                id="chat-submit"
-                type="submit"
-                disabled={isLoading || input.trim() === ""}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#7c3aed] via-[#d946ef] to-[#fb7185] text-white shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50"
-                aria-label="Send message"
-                title="Send"
-              >
-                <Send className="h-5 w-5" />
-              </button>
-            </form>
-
-            <div className="flex items-center justify-between max-w-3xl mx-auto mt-3">
-              <p className="text-xs text-slate-400">
-                Press Enter to send • {messages.length} messages
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={exportChat}
-                  className="text-xs text-slate-300 hover:text-white"
-                  aria-label="Export chat small"
-                >
-                  Export
-                </button>
-                <button
-                  onClick={clearChat}
-                  className="text-xs text-slate-300 hover:text-white"
-                >
-                  Clear
-                </button>
-              </div>
             </div>
-          </footer>
+          </main>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

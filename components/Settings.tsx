@@ -64,9 +64,8 @@ function ModelDropdown({
               {group.models.map((m) => (
                 <div
                   key={m.name}
-                  className={`px-3 py-2 rounded text-sm text-slate-200 cursor-pointer hover:bg-white/5 transition ${
-                    value === m.name ? "bg-white/10" : ""
-                  }`}
+                  className={`px-3 py-2 rounded text-sm text-slate-200 cursor-pointer hover:bg-white/5 transition ${value === m.name ? "bg-white/10" : ""
+                    }`}
                   onClick={() => {
                     onChange(m.name);
                     setOpen(false);
@@ -98,6 +97,7 @@ export default function Settings() {
     maxTokens: 2000,
     modelName: "gpt-4o-mini",
     stream: true,
+    systemPrompt: "",
   });
 
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function Settings() {
     try {
       const saved = localStorage.getItem("chatSettings");
       if (saved) setSettings(JSON.parse(saved));
-    } catch {}
+    } catch { }
   }, []);
 
   /* --------------------------
@@ -335,6 +335,21 @@ export default function Settings() {
                 setSettings((p) => ({ ...p, stream: e.target.checked }))
               }
               className="h-5 w-5 accent-[#7c3aed]"
+            />
+          </div>
+
+          {/* SYSTEM PROMPT */}
+          <div>
+            <label className="text-sm font-medium text-slate-300 mb-1 block">
+              System Instructions
+            </label>
+            <textarea
+              value={settings.systemPrompt || ""}
+              onChange={(e) =>
+                setSettings((p) => ({ ...p, systemPrompt: e.target.value }))
+              }
+              placeholder="e.g. You are a helpful coding assistant..."
+              className="w-full h-24 rounded-lg bg-[#0b1020]/80 border border-white/10 p-3 text-sm text-slate-200 placeholder:text-slate-500 focus:ring-2 focus:ring-[#7c3aed]/40 outline-none resize-none"
             />
           </div>
 

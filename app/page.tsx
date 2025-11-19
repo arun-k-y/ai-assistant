@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -11,10 +11,14 @@ import {
   Zap,
   Shield,
   Star,
+  Menu,
+  X,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function Home() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // Features and stats (kept from your original structure but tuned)
   const features = [
     {
@@ -104,16 +108,17 @@ export default function Home() {
             <div>
               <span className="font-semibold text-lg tracking-tight">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#A78BFA] to-[#60A5FA]">
-                  NeonAI
+                  Lumina
                 </span>
               </span>
               <div className="text-xs text-slate-400">
-                Vercel · Linear inspired UI
+                Illuminating Intelligence
               </div>
             </div>
           </div>
 
-          <nav className="flex items-center gap-3">
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex items-center gap-3">
             <Link
               href="/about"
               className="rounded-md px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/3 transition"
@@ -136,7 +141,59 @@ export default function Home() {
               <ArrowRight className="h-4 w-4 text-white" />
             </Link>
           </nav>
+
+          {/* Mobile Menu Toggle */}
+          <button
+            className="md:hidden p-2 text-slate-300 hover:bg-white/5 rounded-lg transition"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
         </div>
+
+        {/* Mobile Nav Overlay */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden border-t border-white/6 bg-[#0b1220]/95 backdrop-blur-xl overflow-hidden"
+            >
+              <div className="px-6 py-6 space-y-4 flex flex-col">
+                <Link
+                  href="/about"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-base font-medium text-slate-300 hover:text-white transition"
+                >
+                  About
+                </Link>
+                <Link
+                  href="/pricing"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-base font-medium text-slate-300 hover:text-white transition"
+                >
+                  Pricing
+                </Link>
+                <div className="pt-2">
+                  <Link
+                    href="/chat"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#7C3AED] via-[#D946EF] to-[#FB7185] px-4 py-3 text-base font-semibold shadow-lg"
+                  >
+                    Start Chat
+                    <ArrowRight className="h-4 w-4 text-white" />
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       <main>
@@ -151,7 +208,7 @@ export default function Home() {
                 className="inline-flex items-center gap-3 rounded-full bg-gradient-to-r from-white/6 to-white/3 px-4 py-2 text-sm text-slate-200"
               >
                 <Star className="h-4 w-4 text-yellow-400" />
-                <span className="font-medium">Vercel-style, neon-gloss UI</span>
+                <span className="font-medium">Next-gen AI Workspace</span>
               </motion.div>
 
               <motion.h1
@@ -160,9 +217,9 @@ export default function Home() {
                 transition={{ duration: 0.8, delay: 0.1 }}
                 className="mt-6 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight"
               >
-                AI chat redesigned for speed, focus, and aesthetics.
+                Lumina: Clarity in every conversation.
                 <span className="block mt-2 bg-clip-text text-transparent bg-gradient-to-r from-[#A78BFA] via-[#60A5FA] to-[#F472B6]">
-                  Dark glossy UI · Neon accents · Instant streaming
+                  Multi-session · Custom Personas · Instant
                 </span>
               </motion.h1>
 
@@ -208,7 +265,7 @@ export default function Home() {
                 className="mt-10 flex flex-wrap gap-3"
               >
                 <div className="rounded-full bg-white/4 px-3 py-2 text-sm text-slate-200">
-                  Neon UI
+                  Lumina UI
                 </div>
                 <div className="rounded-full bg-white/4 px-3 py-2 text-sm text-slate-200">
                   Streaming
@@ -250,7 +307,7 @@ export default function Home() {
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-slate-100">
-                        NeonAI Assistant
+                        Lumina Assistant
                       </div>
                       <div className="text-xs text-slate-400">
                         Active • streaming
@@ -277,7 +334,7 @@ export default function Home() {
 
                   <div className="rounded-xl bg-gradient-to-br from-[#0f1724]/70 to-[#07102b]/60 p-4 text-sm text-slate-200 max-w-[90%] ml-auto border border-white/4">
                     <div className="font-medium mb-1 text-slate-100">
-                      NeonAI
+                      Lumina
                     </div>
                     <div className="text-[13px] leading-relaxed">
                       Here&apos;s a minimal config — uses PostCSS and Tailwind.{" "}
@@ -385,7 +442,7 @@ module.exports = {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-bold">
-                  Ready to experience NeonAI?
+                  Ready to experience Lumina?
                 </h3>
                 <p className="mt-1 text-slate-400">
                   Start for free — upgrade when you&apos;re ready. Enterprise plans
@@ -418,7 +475,7 @@ module.exports = {
               <Bot className="h-4 w-4 text-white" />
             </div>
             <div>
-              <div className="font-semibold">NeonAI</div>
+              <div className="font-semibold">Lumina</div>
               <div className="text-xs text-slate-400">
                 © {new Date().getFullYear()}
               </div>
